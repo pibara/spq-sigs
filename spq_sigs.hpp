@@ -4,12 +4,31 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <sodium.h>
 
 namespace spqsigs {
   template<int hashlen>
+  struct digest {
+	 digest(){};
+	 virtual ~digest(){};
+         std::byte m_bytes[hashlen];
+  };
+  template<int hashlen>
+  digest<hashlen> make_seed(){
+    return digest<hashlen>();
+  };
+  template<int hashlen>
   struct blake2 {
-         blake2() {}
+         blake2(digest<hashlen> &salt):/*m_blake2b(hashlen),*/ m_salt(salt) {}
 	 virtual ~blake2(){}
+	 digest<hashlen> operator()(const std::byte *input){};
+	 digest<hashlen> operator()(digest<hashlen> &input){};
+	 digest<hashlen> operator()(digest<hashlen> &input, digest<hashlen> &input2){};
+	 digest<hashlen> random(){};
+	 digest<hashlen> seed_to_secret(size_t index, size_t subindex, char side){};
+     private:
+	 //CryptoPP::BLAKE2b m_blake2b;
+	 digest<hashlen> &m_salt;
   };
   template<size_t hashlen, size_t wotsbits>
   struct subkey {
@@ -40,7 +59,8 @@ namespace spqsigs {
   };
   template<size_t hashlen=24, size_t wotsbits=12, size_t merkledepth=10>
   struct signing_key {
-         signing_key(size_t multiproc=8):m_hashfunction(),
+         signing_key(size_t multiproc=8): m_seed(make_seed<hashlen>()),
+		                      m_hashfunction(m_seed),
 	                              m_privkeys(m_hashfunction),
 	                              m_merkle_tree(m_hashfunction, m_privkeys) {
 
@@ -59,6 +79,7 @@ namespace spqsigs {
          }
          virtual ~signing_key(){}
      private:
+	 digest<hashlen> m_seed;
 	 blake2<hashlen> m_hashfunction;
 	 private_keys<hashlen, wotsbits, merkledepth> m_privkeys;
 	 merkle_tree<hashlen, wotsbits, merkledepth> m_merkle_tree;
