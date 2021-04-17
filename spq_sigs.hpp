@@ -21,10 +21,17 @@ namespace spqsigs {
   struct blake2 {
          blake2(digest<hashlen> &salt):/*m_blake2b(hashlen),*/ m_salt(salt) {}
 	 virtual ~blake2(){}
-	 digest<hashlen> operator()(const std::byte *input){};
-	 digest<hashlen> operator()(digest<hashlen> &input){};
+	 digest<hashlen> operator()(const std::byte *input, long long inlen=hashlen){
+             digest<hashlen> rval;
+	     crypto_generichash_blake2b(rval.m_bytes, hashlen, input, inlen, m_salt.m_bytes, hashlen);  
+	     return rval;
+	 };
+	 digest<hashlen> operator()(digest<hashlen> &input){
+	     digest<hashlen> rval;
+             crypto_generichash_blake2b(rval.m_bytes, hashlen, input.m_bytes, hashlen, m_salt.m_bytes, hashlen);
+             return rval;
+	 };
 	 digest<hashlen> operator()(digest<hashlen> &input, digest<hashlen> &input2){};
-	 digest<hashlen> random(){};
 	 digest<hashlen> seed_to_secret(size_t index, size_t subindex, char side){};
      private:
 	 //CryptoPP::BLAKE2b m_blake2b;
