@@ -8,50 +8,50 @@
 
 namespace spqsigs {
   template<int hashlen>
-  struct digest {
-	 digest(){};
-	 virtual ~digest(){};
-         std::byte m_bytes[hashlen];
-  };
-  template<int hashlen>
-  digest<hashlen> make_seed(){
-     digest<hashlen> rval;
-     randombytes_buf(rval.m_bytes, hashlen);
-     return rval;
+  std::string make_seed(){
+     char output[hashlen];
+     randombytes_buf(output, hashlen);
+     return std::string(output, hashlen);
   };
   template<int hashlen>
   struct blake2 {
-         blake2(digest<hashlen> &salt):/*m_blake2b(hashlen),*/ m_salt(salt) {}
+         blake2(std::string &salt): m_salt(salt) {}
 	 virtual ~blake2(){}
-	 digest<hashlen> operator()(const std::byte *input, long long inlen=hashlen){
-             digest<hashlen> rval;
-	     crypto_generichash_blake2b(rval.m_bytes, hashlen, input, inlen, m_salt.m_bytes, hashlen);  
-	     return rval;
+	 std::string operator()(std::string &input){
+             char output[hashlen];
+	     crypto_generichash_blake2b(output, hashlen, reinterpret_cast<const unsigned char *>(input.c_str()), input.length(), reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);  
+	     return std::string(output, hashlen);
 	 };
-	 digest<hashlen> operator()(digest<hashlen> &input){
-	     digest<hashlen> rval;
-             crypto_generichash_blake2b(rval.m_bytes, hashlen, input.m_bytes, hashlen, m_salt.m_bytes, hashlen);
-             return rval;
-	 };
-	 digest<hashlen> operator()(digest<hashlen> &input, digest<hashlen> &input2){
-	     digest<hashlen> rval;
+	 std::string operator()(std::string &input, size_t times){
+             unsigned char output[hashlen];
+	     strncpy(output, reinterpret_cast<const unsigned char *>(input.c_str()), hashlen);
 	     crypto_generichash_blake2b_state state;
-	     crypto_generichash_blake2b_init(&state, m_salt.m_bytes, hashlen, hashlen);
-	     crypto_generichash_blake2b_update(&state, input.m_bytes, hashlen);
-	     crypto_generichash_blake2b_update(&state, input2.m_bytes, hashlen);
-             crypto_generichash_blake2b_final(&state, rval.m_bytes, hashlen);
-	     return rval;
+	     for (int index=0;index < times; index++) {
+		 crypto_generichash_blake2b_init(&state, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen, hashlen);
+		 crypto_generichash_blake2b_update(&state, output, hashlen);
+                 crypto_generichash_blake2b_final(&state, output, hashlen);
+	     }
+             return std::string(output, hashlen);
+         };
+	 std::string operator()(std::string &input, std::string &input2){
+	     char output[hashlen];
+	     crypto_generichash_blake2b_state state;
+	     crypto_generichash_blake2b_init(&state, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen, hashlen);
+	     crypto_generichash_blake2b_update(&state, reinterpret_cast<const unsigned char *>(input.c_str()), hashlen);
+	     crypto_generichash_blake2b_update(&state, reinterpret_cast<const unsigned char *>(input2.c_str()), hashlen);
+             crypto_generichash_blake2b_final(&state, output, hashlen);
+	     return std::string(output, hashlen);
 	 };
-	 digest<hashlen> seed_to_secret(digest<hashlen> & seed, size_t index, size_t subindex, char side){
+	 std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, char side){
+	     char unsalted[hashlen];
+	     char output[hashlen];
 	     std::string designator=std::to_string(index) + side + std::to_string(subindex);
-             digest<hashlen> unsalted;
-             crypto_generichash_blake2b(unsalted.m_bytes, hashlen, designator.c_str(), designator.length(), seed.m_bytes, hashlen);
-	     digest<hashlen> rval;
-             crypto_generichash_blake2b(rval.m_bytes, hashlen, unsalted.m_bytes, hashlen, m_salt.m_bytes, hashlen);
-             return rval;
+             crypto_generichash_blake2b(unsalted, hashlen, reinterpret_cast<const unsigned char *>(designator.c_str()), designator.length(), reinterpret_cast<const unsigned char *>(seed.c_str()), hashlen);
+             crypto_generichash_blake2b(output, hashlen, unsalted, hashlen, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);
+             return std::string(output, hashlen);;
 	 };
      private:
-	 digest<hashlen> &m_salt;
+	 std::string &m_salt;
   };
   template<size_t hashlen, size_t wotsbits>
   struct subkey {
@@ -102,7 +102,7 @@ namespace spqsigs {
          }
          virtual ~signing_key(){}
      private:
-	 digest<hashlen> m_seed;
+	 std::string m_seed;
 	 blake2<hashlen> m_hashfunction;
 	 private_keys<hashlen, wotsbits, merkledepth> m_privkeys;
 	 merkle_tree<hashlen, wotsbits, merkledepth> m_merkle_tree;
