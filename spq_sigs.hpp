@@ -15,7 +15,9 @@ namespace spqsigs {
   };
   template<int hashlen>
   digest<hashlen> make_seed(){
-    return digest<hashlen>();
+     digest<hashlen> rval;
+     randombytes_buf(rval.m_bytes, hashlen);
+     return rval;
   };
   template<int hashlen>
   struct blake2 {
@@ -31,10 +33,24 @@ namespace spqsigs {
              crypto_generichash_blake2b(rval.m_bytes, hashlen, input.m_bytes, hashlen, m_salt.m_bytes, hashlen);
              return rval;
 	 };
-	 digest<hashlen> operator()(digest<hashlen> &input, digest<hashlen> &input2){};
-	 digest<hashlen> seed_to_secret(size_t index, size_t subindex, char side){};
+	 digest<hashlen> operator()(digest<hashlen> &input, digest<hashlen> &input2){
+	     digest<hashlen> rval;
+	     crypto_generichash_blake2b_state state;
+	     crypto_generichash_blake2b_init(&state, m_salt.m_bytes, hashlen, hashlen);
+	     crypto_generichash_blake2b_update(&state, input.m_bytes, hashlen);
+	     crypto_generichash_blake2b_update(&state, input2.m_bytes, hashlen);
+             crypto_generichash_blake2b_final(&state, rval.m_bytes, hashlen);
+	     return rval;
+	 };
+	 digest<hashlen> seed_to_secret(digest<hashlen> & seed, size_t index, size_t subindex, char side){
+	     std::string designator=std::to_string(index) + side + std::to_string(subindex);
+             digest<hashlen> unsalted;
+             crypto_generichash_blake2b(unsalted.m_bytes, hashlen, designator.c_str(), designator.length(), seed.m_bytes, hashlen);
+	     digest<hashlen> rval;
+             crypto_generichash_blake2b(rval.m_bytes, hashlen, unsalted.m_bytes, hashlen, m_salt.m_bytes, hashlen);
+             return rval;
+	 };
      private:
-	 //CryptoPP::BLAKE2b m_blake2b;
 	 digest<hashlen> &m_salt;
   };
   template<size_t hashlen, size_t wotsbits>
