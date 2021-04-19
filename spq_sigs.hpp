@@ -6,6 +6,7 @@
 #include <vector>
 #include <stdexcept>
 #include <algorithm>
+#include <iostream> //FIXME: remove iostream debugging
 #include <sodium.h>
 #include <arpa/inet.h>
 
@@ -84,13 +85,33 @@ namespace spqsigs {
   template<size_t hashlen, size_t wotsbits>
   std::vector<uint16_t> digest_to_numlist(std::string &msg_digest) {
       std::vector<uint16_t> rval;
-      size_t bitindex = 0;
+      constexpr static size_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+      constexpr static size_t morebits = subkey_count * wotsbits - hashlen * 8;
+      uint16_t val = 0;
+      size_t remaining_bits = wotsbits - morebits;
       size_t byteindex = 0;
       const unsigned char *data = reinterpret_cast<const unsigned char *>(msg_digest.c_str());
-      while (bitindex < hashlen*8) {
-          uint16_t val = 0;
-	  //FIXME: extract one number from the bits here and add it to rval;
-	  bitindex += wotsbits;
+      while (byteindex < hashlen) {
+         while (remaining_bits > 8) {
+             val = (val << 8) + data[byteindex];
+	     byteindex +=1;
+             remaining_bits -= 8;
+	 }
+	 val = (val << remaining_bits) + (data[byteindex] >> (8-remaining_bits));
+	 std::cerr << val << std::endl;
+	 rval.push_back(val);
+	 uint16_t val2 = ((data[byteindex] << remaining_bits) & 255) >> remaining_bits;
+	 uint16_t used_bits = 8 - remaining_bits;
+	 while (used_bits >= wotsbits) {
+             val = val2 >> (used_bits - wotsbits);
+	     std::cerr << val << std::endl;
+	     rval.push_back(val);
+	     used_bits -= wotsbits;
+	     val2 = ((val2 << (8-used_bits)) & 255) >> (8-used_bits);
+	 }
+	 val = val2;
+	 remaining_bits = wotsbits - used_bits;
+         byteindex +=1;
       }
       return rval;
   };
@@ -108,7 +129,8 @@ namespace spqsigs {
                 rval += value;
             });
 	};
-	std::string operator [](std::string)  {
+	std::string operator [](std::string digest)  {
+	    auto res = digest_to_numlist<hashlen, wotsbits>(digest);
 	    //FIXME: Implement this as in python lib.
             return "BOGUS";
 	};
