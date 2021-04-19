@@ -1,10 +1,13 @@
 #ifndef SPQ_SIGS_HPP
 #define SPQ_SIGS_HPP
 #include <cstddef>
+#include <cstdint>
 #include <string>
-#include <map>
 #include <vector>
+#include <stdexcept>
+#include <algorithm>
 #include <sodium.h>
+#include <arpa/inet.h>
 
 namespace spqsigs {
   template<int hashlen>
@@ -18,94 +21,169 @@ namespace spqsigs {
          blake2(std::string &salt): m_salt(salt) {}
 	 virtual ~blake2(){}
 	 std::string operator()(std::string &input){
-             char output[hashlen];
+             unsigned char output[hashlen];
 	     crypto_generichash_blake2b(output, hashlen, reinterpret_cast<const unsigned char *>(input.c_str()), input.length(), reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);  
-	     return std::string(output, hashlen);
+	     return std::string(reinterpret_cast<const char *>(output), hashlen);
 	 };
 	 std::string operator()(std::string &input, size_t times){
              unsigned char output[hashlen];
-	     strncpy(output, reinterpret_cast<const unsigned char *>(input.c_str()), hashlen);
+	     strncpy(output, reinterpret_cast<const char *>(input.c_str()), hashlen);
 	     crypto_generichash_blake2b_state state;
 	     for (int index=0;index < times; index++) {
 		 crypto_generichash_blake2b_init(&state, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen, hashlen);
 		 crypto_generichash_blake2b_update(&state, output, hashlen);
                  crypto_generichash_blake2b_final(&state, output, hashlen);
 	     }
-             return std::string(output, hashlen);
+             return std::string(reinterpret_cast<const char *>(output), hashlen);
          };
 	 std::string operator()(std::string &input, std::string &input2){
-	     char output[hashlen];
+	     unsigned char output[hashlen];
 	     crypto_generichash_blake2b_state state;
 	     crypto_generichash_blake2b_init(&state, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen, hashlen);
 	     crypto_generichash_blake2b_update(&state, reinterpret_cast<const unsigned char *>(input.c_str()), hashlen);
 	     crypto_generichash_blake2b_update(&state, reinterpret_cast<const unsigned char *>(input2.c_str()), hashlen);
              crypto_generichash_blake2b_final(&state, output, hashlen);
-	     return std::string(output, hashlen);
+	     return std::string(reinterpret_cast<const char *>(output), hashlen);
 	 };
-	 std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, char side){
-	     char unsalted[hashlen];
-	     char output[hashlen];
-	     std::string designator=std::to_string(index) + side + std::to_string(subindex);
+	 std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, size_t side){
+	     unsigned char unsalted[hashlen];
+	     unsigned char output[hashlen];
+	     std::string sidec = (side) ? "R" : "L";
+	     std::string designator=std::to_string(index) + sidec + std::to_string(subindex);
              crypto_generichash_blake2b(unsalted, hashlen, reinterpret_cast<const unsigned char *>(designator.c_str()), designator.length(), reinterpret_cast<const unsigned char *>(seed.c_str()), hashlen);
              crypto_generichash_blake2b(output, hashlen, unsalted, hashlen, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);
-             return std::string(output, hashlen);;
+             return std::string(reinterpret_cast<const char *>(output), hashlen);;
 	 };
      private:
 	 std::string &m_salt;
   };
   template<size_t hashlen, size_t wotsbits>
   struct subkey {
-        subkey(){};
+        subkey(blake2<hashlen> &blake2b, std::string seed, size_t index, size_t subindex): m_blake2b(blake2b){
+	    for (size_t side=0; side < 2; side ++) {
+	        m_private.push_back(blake2b.seed_to_secret(seed, index, subindex, side));
+	    }
+	};
 	virtual ~subkey(){};
+	std::string pubkey() {
+            if (m_public == "") {
+              std::string privkey_1 = m_blake2b(m_private[0], 1<<wotsbits);
+	      std::string privkey_2 = m_blake2b(m_private[1], 1<<wotsbits);
+              m_public = m_blake2b(privkey_1, privkey_2);
+	    }
+            return m_public;
+	};
+        std::string operator [](uint16_t index) {
+	    return m_blake2b(m_private[0], index) + m_blake2b(m_private[0], (1<<wotsbits) - index -1);
+	}
+     private:
+	blake2<hashlen> &m_blake2b;
+        std::vector<std::string> m_private;
+        std::string m_public;
+  };
+  template<size_t hashlen, size_t wotsbits>
+  std::vector<uint16_t> digest_to_numlist(std::string &msg_digest) {
+      std::vector<uint16_t> rval;
+      size_t bitindex = 0;
+      size_t byteindex = 0;
+      const unsigned char *data = reinterpret_cast<const unsigned char *>(msg_digest.c_str());
+      while (bitindex < hashlen*8) {
+          uint16_t val = 0;
+	  //FIXME: extract one number from the bits here and add it to rval;
+	  bitindex += wotsbits;
+      }
+      return rval;
   };
   template<size_t hashlen, size_t subkey_count, size_t wotsbits>
   struct private_key {
-        private_key(){};
-	virtual ~private_key(){}
+        private_key(blake2<hashlen> &blake2b, std::string seed, size_t index){
+	    for(size_t subindex=0; subindex < subkey_count; subindex++) {
+               m_subkeys.push_back(subkey<hashlen, wotsbits>(blake2b, seed, index, subindex));
+	    }
+	};
+	virtual ~private_key(){};
+	std::string pubkey() {
+            std::string rval = "";
+	    std::for_each(std::begin(m_subkeys), std::end(m_subkeys), [&rval](subkey<hashlen, wotsbits> & value) {
+                rval += value;
+            });
+	};
+	std::string operator [](std::string)  {
+	    //FIXME: Implement this as in python lib.
+            return "BOGUS";
+	};
      private:
 	std::vector<subkey<hashlen, wotsbits>> m_subkeys;
   };
-  template<size_t hashlen,  size_t merkledepth, size_t wotsbits>
+  template<size_t hashlen,  size_t merkledepth, size_t wotsbits, size_t pubkey_size>
   struct private_keys {
-        private_keys(blake2<hashlen> hashfunction) {
-	   static size_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+	static constexpr size_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+        private_keys(blake2<hashlen> &blake2b, std::string seed, size_t multiproc) {
+	   for (size_t index=0; index < pubkey_size; index++) {
+               m_keys.push_back(private_key<hashlen, subkey_count, wotsbits>(blake2b, seed, index));
+	   }
 	};
-	virtual ~private_keys(){}
+	virtual ~private_keys(){};
+	private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits> &operator [](uint16_t index)  {
+            return this->m_keys[index];
+        };
      private:
-	std::map<std::string,private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits>>  m_keys;
+	std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits>>  m_keys;
   };
   template<size_t hashlen, size_t wotsbits, size_t merkledepth>
   struct merkle_tree {
         merkle_tree(blake2<hashlen> hashfunction,
-			            private_keys<hashlen, wotsbits, merkledepth> privkey){};
+			            private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > privkey){};
 	virtual ~merkle_tree(){};
+	std::string pubkey() {
+	    //FIXME: implement this as in python lib.
+            return "BOGUS";
+	};
+	std::string operator [](uint16_t)  {
+	    //FIXME: implement this as in python lib.
+	    return "BOGUS";
+	};
   };
   template<size_t hashlen=24, size_t wotsbits=12, size_t merkledepth=10>
   struct signing_key {
-         signing_key(size_t multiproc=8): m_seed(make_seed<hashlen>()),
-		                      m_hashfunction(m_seed),
-	                              m_privkeys(m_hashfunction),
-	                              m_merkle_tree(m_hashfunction, m_privkeys) {
+         signing_key(size_t multiproc=8): m_next_index(0), 
+		                          m_seed(make_seed<hashlen>()),
+	                                  m_salt(make_seed<hashlen>()),
+		                          m_hashfunction(m_salt),
+	                                  m_privkeys(m_hashfunction, m_seed, multiproc),
+	                                  m_merkle_tree(m_hashfunction, m_privkeys) {
 
          };
          signing_key(std::string serialized) {
-
+             throw std::runtime_error("not yet implemented");
          };
-         void sign_digest(std::byte *digest, std::byte *signature) {
-             return;
+	 std::string sign_digest(std::string &digest) {
+	     uint16_t ndx = htons(this->m_next_index);
+	     std::string ndxs = std::string(reinterpret_cast<const char *>(&ndxs), 2);
+             std::string rval = this->m_merkle_tree.pubkey() +
+                                this->m_salt +
+                                ndxs +
+			        this->m_merkle_tree[m_next_index] +
+			        this->m_privkeys[m_next_index][digest];
+             this->m_next_index++;
+             return rval;
          };
-         void sign_message(const std::byte *message, size_t length, std::byte *signature) {
-             return ;
+	 std::string sign_message(std::string &message) {
+	     std::string digest = m_hashfunction(message);
+	     return this->sign_digest(digest);	 
          };
          std::string get_state() {
-             return "";
+             throw std::runtime_error("not yet implemented");
          }
          virtual ~signing_key(){}
      private:
+	 uint16_t m_next_index;
 	 std::string m_seed;
+	 std::string m_salt;
 	 blake2<hashlen> m_hashfunction;
-	 private_keys<hashlen, wotsbits, merkledepth> m_privkeys;
+	 private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > m_privkeys;
 	 merkle_tree<hashlen, wotsbits, merkledepth> m_merkle_tree;
   };
+  //FIXME: implement a validator as in python lib.
 }
 #endif
