@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cassert>
 #include <string>
 #include <vector>
 #include <map>
@@ -13,13 +14,13 @@
 #include <arpa/inet.h>
 
 namespace spqsigs {
-  template<int hashlen>
+  template<unsigned char hashlen>
   std::string make_seed(){
      char output[hashlen];
      randombytes_buf(output, hashlen);
      return std::string(output, hashlen);
   };
-  template<int hashlen>
+  template<unsigned char hashlen>
   struct blake2 {
          blake2(std::string &salt): m_salt(salt) {}
 	 virtual ~blake2(){}
@@ -60,7 +61,7 @@ namespace spqsigs {
      private:
 	 std::string &m_salt;
   };
-  template<size_t hashlen, size_t wotsbits>
+  template<unsigned char hashlen, unsigned char wotsbits>
   struct subkey {
         subkey(blake2<hashlen> &blake2b, std::string seed, size_t index, size_t subindex): m_blake2b(blake2b){
 	    for (size_t side=0; side < 2; side ++) {
@@ -84,7 +85,7 @@ namespace spqsigs {
         std::vector<std::string> m_private;
         std::string m_public;
   };
-  template<size_t hashlen, size_t wotsbits>
+  template<unsigned char hashlen, unsigned char wotsbits>
   std::vector<uint16_t> digest_to_numlist(std::string &msg_digest) {
       std::vector<uint16_t> rval;
       constexpr static size_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
@@ -115,7 +116,7 @@ namespace spqsigs {
       }
       return rval;
   };
-  template<size_t hashlen, size_t subkey_count, size_t wotsbits>
+  template<unsigned char hashlen, unsigned char subkey_count, unsigned char wotsbits>
   struct private_key {
         private_key(blake2<hashlen> &blake2b, std::string seed, size_t index){
 	    for(size_t subindex=0; subindex < subkey_count; subindex++) {
@@ -124,10 +125,11 @@ namespace spqsigs {
 	};
 	virtual ~private_key(){};
 	std::string pubkey() {
-            std::string rval = "";
-	    std::for_each(std::begin(m_subkeys), std::end(m_subkeys), [&rval](subkey<hashlen, wotsbits> & value) {
-                rval += value;
+            std::string rval("");
+	    std::for_each(std::begin(m_subkeys), std::end(m_subkeys), [&rval, this](subkey<hashlen, wotsbits> & value) {
+                rval += value.pubkey();
             });
+	    return rval;
 	};
 	std::string operator [](std::string digest)  {
 	    auto numlist = digest_to_numlist<hashlen, wotsbits>(digest);
@@ -141,10 +143,10 @@ namespace spqsigs {
      private:
 	std::vector<subkey<hashlen, wotsbits>> m_subkeys;
   };
-  template<size_t hashlen,  size_t merkledepth, size_t wotsbits, size_t pubkey_size>
+  template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint16_t pubkey_size>
   struct private_keys {
-	static constexpr size_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
-        private_keys(blake2<hashlen> &blake2b, std::string seed, size_t multiproc) {
+	static constexpr uint16_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+        private_keys(blake2<hashlen> &blake2b, std::string seed) {
 	   for (size_t index=0; index < pubkey_size; index++) {
                m_keys.push_back(private_key<hashlen, subkey_count, wotsbits>(blake2b, seed, index));
 	   }
@@ -156,7 +158,24 @@ namespace spqsigs {
      private:
 	std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits>>  m_keys;
   };
-  template<size_t hashlen, size_t wotsbits, size_t merkledepth>
+  template<unsigned char merkledepth, unsigned char remaining_depth, bool do_threads>
+  constexpr bool use_threads() {
+      if constexpr ((do_threads == false) or (merkledepth < 4) or (merkledepth - remaining_depth > 2)) {
+          return false;
+      } else {
+          return true;
+      }
+  };
+  template<unsigned char wotsbits>
+  std::vector<bool> as_bits(uint16_t wotsval) {
+      std::vector<bool> rval;
+      for (unsigned char index=wotsbits; index>0; index--) {
+	  bool val = (((wotsval >> (index - 1)) & 1) == 1);
+          rval.push_back(val);
+      }
+      return rval;
+  }
+  template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth, bool do_threads>
   struct merkle_tree {
         merkle_tree(blake2<hashlen> & hashfunction,
 	            private_keys<hashlen,
@@ -168,21 +187,42 @@ namespace spqsigs {
 	virtual ~merkle_tree(){};
 	std::string pubkey() {
 	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-                this->populate();
+                this->populate<merkledepth>(0, "");
 	    }
             return m_merkle_tree[""];
 	};
-	std::string operator [](uint16_t)  {
+	std::string operator [](uint16_t wotsval)  {
 	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-                this->populate();
+                this->populate<merkledepth>(0, "");
             }
-	    //FIXME: implement this as in python lib.
-	    return "BOGUS-MTHEADER";
+            std::vector<bool> wots_val_bits = as_bits<wotsbits>(wotsval);
+	    std::string rval;
+	    for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
+                std::string key;
+		for (unsigned char index; index<bindex; index++) {
+                    key += wots_val_bits[index] ? "1" : "0";
+		}
+		key += wots_val_bits[bindex] ? "0" : "1";
+		rval += m_merkle_tree[key];
+	    }
+	    return rval;
 	};
      private:
-	void populate() {
-	    m_merkle_tree[""] = "POPULATE-NOT-IMPLEMENTED";
-            // FIXME: Populate merkletree from private keys.
+	template<unsigned char remaining_depth>
+	std::string populate(uint16_t start, std::string prefix) {
+	    if constexpr (remaining_depth != 0) {
+		if constexpr (use_threads<merkledepth, remaining_depth, do_threads>()) {
+		    // FIXME: Run the two sub-trees in seperate threaths ans wait for results
+                    std::cerr << "threaded: " << prefix << std::endl;
+		}
+                std::string left = this->populate<remaining_depth-1>(start,prefix + "0");
+	        std::string right = this->populate<remaining_depth-1>(start + (1 << (remaining_depth - 1)),prefix + "1");
+                m_merkle_tree[prefix] = m_hashfunction(left, right);
+	    } else {
+		std::string pkey = m_private_keys[start].pubkey();
+                m_merkle_tree[prefix] =  m_hashfunction(pkey);
+	    }
+	    return m_merkle_tree[prefix];
 	};
 	blake2<hashlen> &m_hashfunction;
 	private_keys<hashlen,
@@ -191,19 +231,26 @@ namespace spqsigs {
                      1 << merkledepth > m_private_keys;
 	std::map<std::string, std::string> m_merkle_tree;
   };
-  template<size_t hashlen=24, size_t wotsbits=12, size_t merkledepth=10>
+  template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkledepth=10, bool do_threads=false>
   struct signing_key {
-         signing_key(size_t multiproc=8): m_next_index(0), 
-		                          m_seed(make_seed<hashlen>()),
-	                                  m_salt(make_seed<hashlen>()),
-		                          m_hashfunction(m_salt),
-	                                  m_privkeys(m_hashfunction, m_seed, multiproc),
-	                                  m_merkle_tree(m_hashfunction, m_privkeys) {
+	 static_assert(hashlen > 2);
+	 static_assert(hashlen < 65);
+	 static_assert(wotsbits < 17);
+	 static_assert(wotsbits > 2);
+	 static_assert(merkledepth < 17);
+	 static_assert(merkledepth > 2);
+         signing_key(): m_next_index(0),
+		        m_seed(make_seed<hashlen>()),
+	                m_salt(make_seed<hashlen>()),
+		        m_hashfunction(m_salt),
+	                m_privkeys(m_hashfunction, m_seed),
+	                m_merkle_tree(m_hashfunction, m_privkeys) {
          };
          signing_key(std::string serialized) {
              throw std::runtime_error("not yet implemented");
          };
 	 std::string sign_digest(std::string &digest) {
+	     assert(digest.length() == hashlen);
 	     uint16_t ndx = htons(this->m_next_index);
 	     std::string ndxs = std::string(reinterpret_cast<const char *>(&ndxs), 2);
              std::string rval = this->m_merkle_tree.pubkey() +
@@ -219,6 +266,7 @@ namespace spqsigs {
 	     return this->sign_digest(digest);	 
          };
          std::string get_state() {
+	     // FIXME: implement serialize
              throw std::runtime_error("not yet implemented");
          }
          virtual ~signing_key(){}
@@ -227,9 +275,8 @@ namespace spqsigs {
 	 std::string m_seed;
 	 std::string m_salt;
 	 blake2<hashlen> m_hashfunction;
-	 // private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > m_privkeys;
 	 private_keys<hashlen, merkledepth, wotsbits, 1 << merkledepth > m_privkeys;
-	 merkle_tree<hashlen, wotsbits, merkledepth> m_merkle_tree;
+	 merkle_tree<hashlen, wotsbits, merkledepth, do_threads> m_merkle_tree;
   };
   //FIXME: implement a validator as in python lib.
 }
