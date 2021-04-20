@@ -2,6 +2,7 @@
 #define SPQ_SIGS_HPP
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -28,7 +29,7 @@ namespace spqsigs {
 	 };
 	 std::string operator()(std::string &input, size_t times){
              unsigned char output[hashlen];
-	     strncpy(output, reinterpret_cast<const char *>(input.c_str()), hashlen);
+	     strncpy(reinterpret_cast<char *>(output), reinterpret_cast<const char *>(input.c_str()), hashlen);
 	     crypto_generichash_blake2b_state state;
 	     for (int index=0;index < times; index++) {
 		 crypto_generichash_blake2b_init(&state, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen, hashlen);
@@ -98,13 +99,11 @@ namespace spqsigs {
              remaining_bits -= 8;
 	 }
 	 val = (val << remaining_bits) + (data[byteindex] >> (8-remaining_bits));
-	 std::cerr << val << std::endl;
 	 rval.push_back(val);
 	 uint16_t val2 = ((data[byteindex] << remaining_bits) & 255) >> remaining_bits;
 	 uint16_t used_bits = 8 - remaining_bits;
 	 while (used_bits >= wotsbits) {
              val = val2 >> (used_bits - wotsbits);
-	     std::cerr << val << std::endl;
 	     rval.push_back(val);
 	     used_bits -= wotsbits;
 	     val2 = ((val2 << (8-used_bits)) & 255) >> (8-used_bits);
@@ -130,9 +129,13 @@ namespace spqsigs {
             });
 	};
 	std::string operator [](std::string digest)  {
-	    auto res = digest_to_numlist<hashlen, wotsbits>(digest);
-	    //FIXME: Implement this as in python lib.
-            return "BOGUS";
+	    auto numlist = digest_to_numlist<hashlen, wotsbits>(digest);
+	    std::string rval;
+	    size_t nl_len = numlist.size();
+	    for(size_t index=0; index < nl_len; index++) {
+                rval += m_subkeys[index][numlist[index]];
+            };
+            return rval;
 	};
      private:
 	std::vector<subkey<hashlen, wotsbits>> m_subkeys;
@@ -155,15 +158,15 @@ namespace spqsigs {
   template<size_t hashlen, size_t wotsbits, size_t merkledepth>
   struct merkle_tree {
         merkle_tree(blake2<hashlen> hashfunction,
-			            private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > privkey){};
+	            private_keys<hashlen, merkledepth, wotsbits, 1 << merkledepth > privkey){};
 	virtual ~merkle_tree(){};
 	std::string pubkey() {
 	    //FIXME: implement this as in python lib.
-            return "BOGUS";
+            return "BOGUS-PUBKEY";
 	};
 	std::string operator [](uint16_t)  {
 	    //FIXME: implement this as in python lib.
-	    return "BOGUS";
+	    return "BOGUS-MTHEADER";
 	};
   };
   template<size_t hashlen=24, size_t wotsbits=12, size_t merkledepth=10>
@@ -174,7 +177,6 @@ namespace spqsigs {
 		                          m_hashfunction(m_salt),
 	                                  m_privkeys(m_hashfunction, m_seed, multiproc),
 	                                  m_merkle_tree(m_hashfunction, m_privkeys) {
-
          };
          signing_key(std::string serialized) {
              throw std::runtime_error("not yet implemented");
@@ -203,7 +205,8 @@ namespace spqsigs {
 	 std::string m_seed;
 	 std::string m_salt;
 	 blake2<hashlen> m_hashfunction;
-	 private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > m_privkeys;
+	 // private_keys<hashlen, wotsbits, merkledepth, 1 << merkledepth > m_privkeys;
+	 private_keys<hashlen, merkledepth, wotsbits, 1 << merkledepth > m_privkeys;
 	 merkle_tree<hashlen, wotsbits, merkledepth> m_merkle_tree;
   };
   //FIXME: implement a validator as in python lib.
