@@ -5,6 +5,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <map>
 #include <stdexcept>
 #include <algorithm>
 #include <iostream> //FIXME: remove iostream debugging
@@ -157,17 +158,38 @@ namespace spqsigs {
   };
   template<size_t hashlen, size_t wotsbits, size_t merkledepth>
   struct merkle_tree {
-        merkle_tree(blake2<hashlen> hashfunction,
-	            private_keys<hashlen, merkledepth, wotsbits, 1 << merkledepth > privkey){};
+        merkle_tree(blake2<hashlen> & hashfunction,
+	            private_keys<hashlen,
+		                 merkledepth,
+		                 wotsbits,
+		                 1 << merkledepth > &privkey): m_hashfunction(hashfunction),
+	                                                      m_private_keys(privkey){
+	};
 	virtual ~merkle_tree(){};
 	std::string pubkey() {
-	    //FIXME: implement this as in python lib.
-            return "BOGUS-PUBKEY";
+	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
+                this->populate();
+	    }
+            return m_merkle_tree[""];
 	};
 	std::string operator [](uint16_t)  {
+	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
+                this->populate();
+            }
 	    //FIXME: implement this as in python lib.
 	    return "BOGUS-MTHEADER";
 	};
+     private:
+	void populate() {
+	    m_merkle_tree[""] = "POPULATE-NOT-IMPLEMENTED";
+            // FIXME: Populate merkletree from private keys.
+	};
+	blake2<hashlen> &m_hashfunction;
+	private_keys<hashlen,
+                     merkledepth,
+                     wotsbits,
+                     1 << merkledepth > m_private_keys;
+	std::map<std::string, std::string> m_merkle_tree;
   };
   template<size_t hashlen=24, size_t wotsbits=12, size_t merkledepth=10>
   struct signing_key {
