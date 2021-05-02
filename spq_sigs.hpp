@@ -14,22 +14,34 @@
 #include <arpa/inet.h>
 
 namespace spqsigs {
+  //Empty class for calling constructor of hashing primative with a request to use a newly generated salt.
   class GENERATE {};
+  //FIXME: look at moving non-API functions and class templates to their own namespace.
+  //FIXME: look at const correctness
+  // Hashing primative for 'hashlen' long digests, with a little extra. The hashing primative runs using libsodium.
+  // FIXME: Look at moving the constructor to private and adding friends to remove confusion from the API.
   template<unsigned char hashlen>
   struct primative {
+	 // Standard constructor using an existing salt. 
          primative(std::string &salt): m_salt(salt) {}
+	 // Virtual distructor
 	 virtual ~primative(){}
+	 // Function for generating a securely random 'hashlen' long seed or salt.
 	 static std::string make_seed(){
              char output[hashlen];
+	     //Use libsodium to get our random bytes
              randombytes_buf(output, hashlen);
              return std::string(output, hashlen);
 	 };
+	 //Alternative constructor. Generates a random salt.
 	 primative(GENERATE): m_salt(make_seed()) {}
+	 //Hash the input with the salt and return the digest.
 	 std::string operator()(std::string &input){
              unsigned char output[hashlen];
 	     crypto_generichash_blake2b(output, hashlen, reinterpret_cast<const unsigned char *>(input.c_str()), input.length(), reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);  
 	     return std::string(reinterpret_cast<const char *>(output), hashlen);
 	 };
+	 //Hash the input with the salt 'times' times. This is used for wots chains.
 	 std::string operator()(std::string &input, size_t times){
              unsigned char output[hashlen];
 	     strncpy(reinterpret_cast<char *>(output), reinterpret_cast<const char *>(input.c_str()), hashlen);
@@ -41,6 +53,7 @@ namespace spqsigs {
 	     }
              return std::string(reinterpret_cast<const char *>(output), hashlen);
          };
+	 //Hash two inputs with salts and return the digest.
 	 std::string operator()(std::string &input, std::string &input2){
 	     unsigned char output[hashlen];
 	     crypto_generichash_blake2b_state state;
@@ -50,6 +63,9 @@ namespace spqsigs {
              crypto_generichash_blake2b_final(&state, output, hashlen);
 	     return std::string(reinterpret_cast<const char *>(output), hashlen);
 	 };
+	 //Convert the seed, together with the index of the full-message-signing-key, the sub-index of the wotsbits chunk
+	 // of bits to sign, and the bit indicating the left or right wots chain for these indices, into the secret key 
+	 // for signing wotsbits bits with.
 	 std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, size_t side){
 	     unsigned char unsalted[hashlen];
 	     unsigned char output[hashlen];
@@ -59,20 +75,29 @@ namespace spqsigs {
              crypto_generichash_blake2b(output, hashlen, unsalted, hashlen, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);
              return std::string(reinterpret_cast<const char *>(output), hashlen);;
 	 };
+	 //Retreive the salt for serialization purposes and later usage.
 	 std::string get_salt() {
              return m_salt;
 	 }
      private:
 	 std::string m_salt;
   };
+
+  // A tiny chunk of a one-time (wots) signing key, able to sign a chunk of 'wotsbits' bits with.
+  // FIXME: Look at moving the constructor and adding friends.
   template<unsigned char hashlen, unsigned char wotsbits>
   struct subkey {
+	//constructor, takes hashing primative, a seed, the one-time-signature index and the chunk sub-index and created
+	// the chunk private for both direction wots chains.
         subkey(primative<hashlen> &hashprimative, std::string seed, size_t index, size_t subindex): m_hashprimative(hashprimative){
 	    for (size_t side=0; side < 2; side ++) {
 	        m_private.push_back(hashprimative.seed_to_secret(seed, index, subindex, side));
 	    }
 	};
+	// virtual destructor
 	virtual ~subkey(){};
+	// calculate the public key for matching the private key for signing the chunk of wotsbits, we do this by
+	// hashing both the left and the right private key a largeish number of times (2^wotsbits times)
 	std::string pubkey() {
             if (m_public == "") {
               std::string privkey_1 = m_hashprimative(m_private[0], 1<<wotsbits);
@@ -81,14 +106,17 @@ namespace spqsigs {
 	    }
             return m_public;
 	};
+	// We use the index operator for signing a chunk of 'wotsbits' bits encoded into an unsigned integer.
         std::string operator [](uint16_t index) {
 	    return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[0], (1<<wotsbits) - index -1);
 	}
      private:
-	primative<hashlen> &m_hashprimative;
-        std::vector<std::string> m_private;
-        std::string m_public;
+	primative<hashlen> &m_hashprimative; // The core hashing primative
+        std::vector<std::string> m_private;  // The private key as generated at construction.
+        std::string m_public;                // The public key, calculated lazy, on demand.
   };
+
+  // Helper function for converting a digest to a vector of numbers that can ve signed using a different subkey each.
   template<unsigned char hashlen, unsigned char wotsbits>
   std::vector<uint16_t> digest_to_numlist(std::string &msg_digest) {
       std::vector<uint16_t> rval;
@@ -124,6 +152,9 @@ namespace spqsigs {
   template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint16_t pubkey_size>
   struct private_keys;
 
+
+  //A private key is a collection of subkeys that together can create a one-time-signature for a single 
+  // transaction/message digest.
   template<unsigned char hashlen, unsigned char subkey_count, unsigned char wotsbits, unsigned char merkledepth, uint16_t pubkey_size>
   struct private_key {
 	virtual ~private_key(){};
