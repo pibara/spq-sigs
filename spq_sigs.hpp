@@ -14,16 +14,17 @@
 #include <arpa/inet.h>
 
 namespace spqsigs {
+  class GENERATE {};
   template<unsigned char hashlen>
-  std::string make_seed(){
-     char output[hashlen];
-     randombytes_buf(output, hashlen);
-     return std::string(output, hashlen);
-  };
-  template<unsigned char hashlen>
-  struct blake2 {
-         blake2(std::string &salt): m_salt(salt) {}
-	 virtual ~blake2(){}
+  struct primative {
+         primative(std::string &salt): m_salt(salt) {}
+	 virtual ~primative(){}
+	 static std::string make_seed(){
+             char output[hashlen];
+             randombytes_buf(output, hashlen);
+             return std::string(output, hashlen);
+	 };
+	 primative(GENERATE): m_salt(make_seed()) {}
 	 std::string operator()(std::string &input){
              unsigned char output[hashlen];
 	     crypto_generichash_blake2b(output, hashlen, reinterpret_cast<const unsigned char *>(input.c_str()), input.length(), reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);  
@@ -58,30 +59,33 @@ namespace spqsigs {
              crypto_generichash_blake2b(output, hashlen, unsalted, hashlen, reinterpret_cast<const unsigned char *>(m_salt.c_str()), hashlen);
              return std::string(reinterpret_cast<const char *>(output), hashlen);;
 	 };
+	 std::string get_salt() {
+             return m_salt;
+	 }
      private:
-	 std::string &m_salt;
+	 std::string m_salt;
   };
   template<unsigned char hashlen, unsigned char wotsbits>
   struct subkey {
-        subkey(blake2<hashlen> &blake2b, std::string seed, size_t index, size_t subindex): m_blake2b(blake2b){
+        subkey(primative<hashlen> &hashprimative, std::string seed, size_t index, size_t subindex): m_hashprimative(hashprimative){
 	    for (size_t side=0; side < 2; side ++) {
-	        m_private.push_back(blake2b.seed_to_secret(seed, index, subindex, side));
+	        m_private.push_back(hashprimative.seed_to_secret(seed, index, subindex, side));
 	    }
 	};
 	virtual ~subkey(){};
 	std::string pubkey() {
             if (m_public == "") {
-              std::string privkey_1 = m_blake2b(m_private[0], 1<<wotsbits);
-	      std::string privkey_2 = m_blake2b(m_private[1], 1<<wotsbits);
-              m_public = m_blake2b(privkey_1, privkey_2);
+              std::string privkey_1 = m_hashprimative(m_private[0], 1<<wotsbits);
+	      std::string privkey_2 = m_hashprimative(m_private[1], 1<<wotsbits);
+              m_public = m_hashprimative(privkey_1, privkey_2);
 	    }
             return m_public;
 	};
         std::string operator [](uint16_t index) {
-	    return m_blake2b(m_private[0], index) + m_blake2b(m_private[0], (1<<wotsbits) - index -1);
+	    return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[0], (1<<wotsbits) - index -1);
 	}
      private:
-	blake2<hashlen> &m_blake2b;
+	primative<hashlen> &m_hashprimative;
         std::vector<std::string> m_private;
         std::string m_public;
   };
@@ -116,13 +120,12 @@ namespace spqsigs {
       }
       return rval;
   };
-  template<unsigned char hashlen, unsigned char subkey_count, unsigned char wotsbits>
+
+  template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint16_t pubkey_size>
+  struct private_keys;
+
+  template<unsigned char hashlen, unsigned char subkey_count, unsigned char wotsbits, unsigned char merkledepth, uint16_t pubkey_size>
   struct private_key {
-        private_key(blake2<hashlen> &blake2b, std::string seed, size_t index){
-	    for(size_t subindex=0; subindex < subkey_count; subindex++) {
-               m_subkeys.push_back(subkey<hashlen, wotsbits>(blake2b, seed, index, subindex));
-	    }
-	};
 	virtual ~private_key(){};
 	std::string pubkey() {
             std::string rval("");
@@ -140,23 +143,35 @@ namespace spqsigs {
             };
             return rval;
 	};
+	friend private_keys<hashlen, merkledepth, wotsbits, pubkey_size>;
      private:
+	private_key(primative<hashlen> &hashprimative, std::string seed, size_t index){
+            for(size_t subindex=0; subindex < subkey_count; subindex++) {
+               m_subkeys.push_back(subkey<hashlen, wotsbits>(hashprimative, seed, index, subindex));
+            }
+        };
 	std::vector<subkey<hashlen, wotsbits>> m_subkeys;
   };
+
+  template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkledepth=10, bool do_threads=false>
+  struct signing_key;
+
   template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint16_t pubkey_size>
   struct private_keys {
 	static constexpr uint16_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
-        private_keys(blake2<hashlen> &blake2b, std::string seed) {
-	   for (size_t index=0; index < pubkey_size; index++) {
-               m_keys.push_back(private_key<hashlen, subkey_count, wotsbits>(blake2b, seed, index));
-	   }
-	};
 	virtual ~private_keys(){};
-	private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits> &operator [](uint16_t index)  {
+	private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits, merkledepth, pubkey_size> &operator [](uint16_t index)  {
             return this->m_keys[index];
         };
+	friend signing_key<hashlen, wotsbits, merkledepth, true>;
+	friend signing_key<hashlen, wotsbits, merkledepth, false>;
      private:
-	std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits>>  m_keys;
+	private_keys(primative<hashlen> &hashprimative, std::string seed) {
+           for (size_t index=0; index < pubkey_size; index++) {
+               m_keys.push_back(private_key<hashlen, subkey_count, wotsbits, merkledepth, pubkey_size>(hashprimative, seed, index));
+           }
+        };
+	std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkledepth, pubkey_size>>  m_keys;
   };
   template<unsigned char merkledepth, unsigned char remaining_depth, bool do_threads>
   constexpr bool use_threads() {
@@ -176,63 +191,62 @@ namespace spqsigs {
       return rval;
   }
   template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth, bool do_threads>
-  struct merkle_tree {
-        merkle_tree(blake2<hashlen> & hashfunction,
-	            private_keys<hashlen,
-		                 merkledepth,
-		                 wotsbits,
-		                 1 << merkledepth > &privkey): m_hashfunction(hashfunction),
-	                                                      m_private_keys(privkey){
-	};
-	virtual ~merkle_tree(){};
-	std::string pubkey() {
-	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-                this->populate<merkledepth>(0, "");
-	    }
-            return m_merkle_tree[""];
-	};
-	std::string operator [](uint16_t wotsval)  {
-	    if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-                this->populate<merkledepth>(0, "");
-            }
-            std::vector<bool> wots_val_bits = as_bits<wotsbits>(wotsval);
-	    std::string rval;
-	    for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
-                std::string key;
-		for (unsigned char index; index<bindex; index++) {
-                    key += wots_val_bits[index] ? "1" : "0";
-		}
-		key += wots_val_bits[bindex] ? "0" : "1";
-		rval += m_merkle_tree[key];
-	    }
-	    return rval;
-	};
-     private:
-	template<unsigned char remaining_depth>
-	std::string populate(uint16_t start, std::string prefix) {
-	    if constexpr (remaining_depth != 0) {
-		if constexpr (use_threads<merkledepth, remaining_depth, do_threads>()) {
-		    // FIXME: Run the two sub-trees in seperate threaths ans wait for results
-                    std::cerr << "threaded: " << prefix << std::endl;
-		}
-                std::string left = this->populate<remaining_depth-1>(start,prefix + "0");
-	        std::string right = this->populate<remaining_depth-1>(start + (1 << (remaining_depth - 1)),prefix + "1");
-                m_merkle_tree[prefix] = m_hashfunction(left, right);
-	    } else {
-		std::string pkey = m_private_keys[start].pubkey();
-                m_merkle_tree[prefix] =  m_hashfunction(pkey);
-	    }
-	    return m_merkle_tree[prefix];
-	};
-	blake2<hashlen> &m_hashfunction;
-	private_keys<hashlen,
-                     merkledepth,
-                     wotsbits,
-                     1 << merkledepth > m_private_keys;
-	std::map<std::string, std::string> m_merkle_tree;
-  };
-  template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkledepth=10, bool do_threads=false>
   struct signing_key {
+         struct merkle_tree {
+               merkle_tree(primative<hashlen> & hashfunction,
+       	                   private_keys<hashlen,
+		                        merkledepth,
+		                        wotsbits,
+		                        1 << merkledepth > &privkey): m_hashfunction(hashfunction),
+	                                                              m_private_keys(privkey){
+	       };
+	       virtual ~merkle_tree(){};
+	       std::string pubkey() {
+	           if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
+                       this->populate<merkledepth>(0, "");
+	           }
+                   return m_merkle_tree[""];
+	       };
+	       std::string operator [](uint16_t wotsval)  {
+	           if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
+                       this->populate<merkledepth>(0, "");
+                   }
+                   std::vector<bool> wots_val_bits = as_bits<wotsbits>(wotsval);
+	           std::string rval;
+	           for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
+                       std::string key;
+		       for (unsigned char index; index<bindex; index++) {
+                           key += wots_val_bits[index] ? "1" : "0";
+		       }
+		       key += wots_val_bits[bindex] ? "0" : "1";
+		       rval += m_merkle_tree[key];
+	           }
+	           return rval;
+	       };
+            private:
+	       template<unsigned char remaining_depth>
+	       std::string populate(uint16_t start, std::string prefix) {
+	           if constexpr (remaining_depth != 0) {
+		       //if constexpr (use_threads<merkledepth, remaining_depth, do_threads>()) {
+		           // FIXME: Run the two sub-trees in seperate threaths ans wait for results
+                           //std::cerr << "threaded: " << prefix << std::endl;
+		       //}
+                       std::string left = this->populate<remaining_depth-1>(start,prefix + "0");
+	               std::string right = this->populate<remaining_depth-1>(start + (1 << (remaining_depth - 1)),prefix + "1");
+                       m_merkle_tree[prefix] = m_hashfunction(left, right);
+	           } else {
+		       std::string pkey = m_private_keys[start].pubkey();
+                       m_merkle_tree[prefix] =  m_hashfunction(pkey);
+	           }
+	           return m_merkle_tree[prefix];
+	       };
+	       primative<hashlen> &m_hashfunction;
+	       private_keys<hashlen,
+                            merkledepth,
+                            wotsbits,
+                            1 << merkledepth > m_private_keys;
+	       std::map<std::string, std::string> m_merkle_tree;
+         };
 	 static_assert(hashlen > 2);
 	 static_assert(hashlen < 65);
 	 static_assert(wotsbits < 17);
@@ -240,9 +254,8 @@ namespace spqsigs {
 	 static_assert(merkledepth < 17);
 	 static_assert(merkledepth > 2);
          signing_key(): m_next_index(0),
-		        m_seed(make_seed<hashlen>()),
-	                m_salt(make_seed<hashlen>()),
-		        m_hashfunction(m_salt),
+		        m_seed(primative<hashlen>::make_seed()),
+		        m_hashfunction(GENERATE()),
 	                m_privkeys(m_hashfunction, m_seed),
 	                m_merkle_tree(m_hashfunction, m_privkeys) {
          };
@@ -254,7 +267,7 @@ namespace spqsigs {
 	     uint16_t ndx = htons(this->m_next_index);
 	     std::string ndxs = std::string(reinterpret_cast<const char *>(&ndxs), 2);
              std::string rval = this->m_merkle_tree.pubkey() +
-                                this->m_salt +
+                                this->m_hashfunction.get_salt() +
                                 ndxs +
 			        this->m_merkle_tree[m_next_index] +
 			        this->m_privkeys[m_next_index][digest];
@@ -273,10 +286,9 @@ namespace spqsigs {
      private:
 	 uint16_t m_next_index;
 	 std::string m_seed;
-	 std::string m_salt;
-	 blake2<hashlen> m_hashfunction;
+	 primative<hashlen> m_hashfunction;
 	 private_keys<hashlen, merkledepth, wotsbits, 1 << merkledepth > m_privkeys;
-	 merkle_tree<hashlen, wotsbits, merkledepth, do_threads> m_merkle_tree;
+	 merkle_tree m_merkle_tree;
   };
   //FIXME: implement a validator as in python lib.
 }
