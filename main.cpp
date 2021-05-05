@@ -1,7 +1,7 @@
 #include <iostream>
 #include "spq_sigs.hpp"
 
-int main(int args, char **argv) {
+int main() {
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
     auto skey = spqsigs::signing_key<24, 12, 10, true >();
     std::string msg("This is just a test.");
