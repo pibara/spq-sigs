@@ -381,70 +381,71 @@ namespace spqsigs {
 
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
 		struct signature {
-		    signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_merkle_tree_header(), m_signature_body() {
-			static_assert(hashlen > 2);
-                        static_assert(hashlen < 65);
-                        static_assert(wotsbits < 17);
-                        static_assert(wotsbits > 2);
-                        static_assert(merkledepth < 17);
-                        static_assert(merkledepth > 2);
-		        // * check signature length
-			constexpr size_t subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
-			constexpr size_t expected_length = 2 + hashlen * (2 + merkledepth + 2 * subkey_count);
-			if (sigstring.length() != expected_length) {
-                            throw std::invalid_argument("Wrong signature size.");
+			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_merkle_tree_header(), m_signature_body() {
+				static_assert(hashlen > 2);
+				static_assert(hashlen < 65);
+				static_assert(wotsbits < 17);
+				static_assert(wotsbits > 2);
+				static_assert(merkledepth < 17);
+				static_assert(merkledepth > 2);
+				// * check signature length
+				constexpr size_t subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
+				constexpr size_t expected_length = 2 + hashlen * (2 + merkledepth + 2 * subkey_count);
+				if (sigstring.length() != expected_length) {
+					throw std::invalid_argument("Wrong signature size.");
+				}
+				// * get pubkey, salt, index, mt-header and wots-body
+				m_pubkey = sigstring.substr(0,hashlen);
+				m_salt = sigstring.substr(hashlen,hashlen);
+				std::string s_index = sigstring.substr(hashlen*2,2);
+				const unsigned char * us_index = reinterpret_cast<const unsigned char *>(s_index.c_str());
+				m_index = (us_index[0] << 8) + us_index[1];
+				for (int index=0; index < merkledepth; index++) {
+					m_merkle_tree_header.push_back(sigstring.substr(hashlen*(2+index)+2, hashlen));
+				}
+				for (int index=0; index < merkledepth; index++) {
+					std::vector<std::string> newval;
+					for (int direction=0; direction<2; direction++) {
+						newval.push_back(sigstring.substr(2 + hashlen * (2 + merkledepth + 2 * index + direction),
+									hashlen));  
+					}
+					m_signature_body.push_back(newval);
+				}
 			}
-		        // * get pubkey, salt, index, mt-header and wots-body
-			m_pubkey = sigstring.substr(0,hashlen);
-		        m_salt = sigstring.substr(hashlen,hashlen);
-			std::string s_index = sigstring.substr(hashlen*2,2);
-			const unsigned char * us_index = reinterpret_cast<const unsigned char *>(s_index.c_str());
-			m_index = (us_index[0] << 8) + us_index[1];
-			for (int index=0; index < merkledepth; index++) {
-                            m_merkle_tree_header.push_back(sigstring.substr(hashlen*(2+index)+2, hashlen));
+			bool validate(std::string message) {
+				// * get the message digest
+				non_api::primative<hashlen, wotsbits, merkledepth> hashfunction(m_salt);
+				std::string digest = hashfunction(message);
+				auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
+				// * complete the wots chains
+				std::string big_ots_pubkey("");
+				for (size_t index=0; index < numlist.size(); index++) {
+					auto signature_chunk = m_signature_body[index];
+					int chunk_num = numlist[index];
+					std::string pk1 = hashfunction(signature_chunk[0], (1 << wotsbits) - chunk_num);
+					std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
+					big_ots_pubkey += hashfunction(pk1, pk2); 
+				}
+				// FIXME: implement below.
+				// * reconstruct the merkle tree root
+				// * check the merkle tree root
+				return true;
 			}
-			for (int index=0; index < merkledepth; index++) {
-                            std::vector<std::string> newval;
-			    for (int direction=0; direction<2; direction++) {
-                                newval.push_back(sigstring.substr(2 + hashlen * (2 + merkledepth + 2 * index + direction), hashlen));  
-			    }
-			    m_signature_body.push_back(newval);
+			uint32_t get_index() {
+				return m_index;
 			}
-		     }
-		     bool validate(std::string message) {
-			// * get the message digest
-			non_api::primative<hashlen, wotsbits, merkledepth> hashfunction(m_salt);
-			std::string digest = hashfunction(message);
-			auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
-		        // * complete the wots chains
-			std::string big_ots_pubkey("");
-			for (size_t index=0; index < numlist.size(); index++) {
-                            auto signature_chunk = m_signature_body[index];
-			    int chunk_num = numlist[index];
-			    std::string pk1 = hashfunction(signature_chunk[0], (1 << wotsbits) - chunk_num);
-			    std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
-			    big_ots_pubkey += hashfunction(pk1, pk2); 
+			std::string get_pubkey() {
+				return m_pubkey;
 			}
-			// FIXME: implement below.
-		        // * reconstruct the merkle tree root
-		        // * check the merkle tree root
-                        return true;
-		    }
-		    uint32_t get_index() {
-                        return m_index;
-		    }
-		    std::string get_pubkey() {
-                        return m_pubkey;
-		    }
-		    std::string get_pubkey_salt() {
-                        return m_salt;
-		    }
-	           private:
-		    std::string m_pubkey;
-                    std::string m_salt;
-		    uint32_t m_index;
-		    std::vector<std::string> m_merkle_tree_header;
-		    std::vector<std::vector<std::string>> m_signature_body;
+			std::string get_pubkey_salt() {
+				return m_salt;
+			}
+			private:
+			std::string m_pubkey;
+			std::string m_salt;
+			uint32_t m_index;
+			std::vector<std::string> m_merkle_tree_header;
+			std::vector<std::vector<std::string>> m_signature_body;
 		};
 }
 #endif
