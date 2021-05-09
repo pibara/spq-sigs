@@ -382,6 +382,12 @@ namespace spqsigs {
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
 		struct signature {
 		    signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_merkle_tree_header(), m_signature_body() {
+			static_assert(hashlen > 2);
+                        static_assert(hashlen < 65);
+                        static_assert(wotsbits < 17);
+                        static_assert(wotsbits > 2);
+                        static_assert(merkledepth < 17);
+                        static_assert(merkledepth > 2);
 		        // * check signature length
 			constexpr size_t subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
 			constexpr size_t expected_length = 2 + hashlen * (2 + merkledepth + 2 * subkey_count);
@@ -408,10 +414,18 @@ namespace spqsigs {
 		     bool validate(std::string message) {
 			// * get the message digest
 			non_api::primative<hashlen, wotsbits, merkledepth> hashfunction(m_salt);
-                        std::string msg_hash = hashfunction(message);
-			// FIXME: implement below.
+			std::string digest = hashfunction(message);
+			auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
 		        // * complete the wots chains
-		        // * complete the signing pubkey
+			std::string big_ots_pubkey("");
+			for (size_t index=0; index < numlist.size(); index++) {
+                            auto signature_chunk = m_signature_body[index];
+			    int chunk_num = numlist[index];
+			    std::string pk1 = hashfunction(signature_chunk[0], (1 << wotsbits) - chunk_num);
+			    std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
+			    big_ots_pubkey += hashfunction(pk1, pk2); 
+			}
+			// FIXME: implement below.
 		        // * reconstruct the merkle tree root
 		        // * check the merkle tree root
                         return true;
