@@ -18,6 +18,7 @@ int main() {
     signature = skey.sign_message(msg);
     std::cout << "signature length: " << signature.length() << " bytes" << std::endl;
     auto sign = verifyable_signature(signature);
+    std::cout << "validating" << std::endl;
     bool ok = sign.validate(msg);
-    std::cout << ok << std::endl;
+    std::cout << "OK = " << ok << std::endl;
 }

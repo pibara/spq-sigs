@@ -80,11 +80,11 @@ namespace spqsigs {
 			}
 
 		//Helper function for turning a small number into a vector of booleans (bits).
-		template<unsigned char wotsbits>
-			std::vector<bool> as_bits(uint32_t wotsval) {
+		template<unsigned char merkledepth>
+			std::vector<bool> as_bits(uint32_t signing_key_index) {
 				std::vector<bool> rval;
-				for (unsigned char index=wotsbits; index>0; index--) {
-					bool val = (((wotsval >> (index - 1)) & 1) == 1);
+				for (unsigned char index=merkledepth; index>0; index--) {
+					bool val = (((signing_key_index >> (index - 1)) & 1) == 1);
 					rval.push_back(val);
 				}
 				return rval;
@@ -294,18 +294,18 @@ namespace spqsigs {
 					}
 					return m_merkle_tree[""];
 				};
-				std::string operator [](uint32_t wotsval)  {
+				std::string operator [](uint32_t signing_key_index)  {
 					if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
 						this->populate<merkledepth>(0, "");
 					}
-					std::vector<bool> wots_val_bits = non_api::as_bits<wotsbits>(wotsval);
+					std::vector<bool> index_bits = non_api::as_bits<merkledepth>(signing_key_index);
 					std::string rval;
 					for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
 						std::string key;
 						for (unsigned char index; index<bindex; index++) {
-							key += wots_val_bits[index] ? "1" : "0";
+							key += index_bits[index] ? "1" : "0";
 						}
-						key += wots_val_bits[bindex] ? "0" : "1";
+						key += index_bits[bindex] ? "0" : "1";
 						rval += m_merkle_tree[key];
 					}
 					return rval;
@@ -381,7 +381,7 @@ namespace spqsigs {
 
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
 		struct signature {
-			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_merkle_tree_header(), m_signature_body() {
+			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_mt_bits() ,m_merkle_tree_header(), m_signature_body() {
 				static_assert(hashlen > 2);
 				static_assert(hashlen < 65);
 				static_assert(wotsbits < 17);
@@ -389,7 +389,7 @@ namespace spqsigs {
 				static_assert(merkledepth < 17);
 				static_assert(merkledepth > 2);
 				// * check signature length
-				constexpr size_t subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
+				constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
 				constexpr size_t expected_length = 2 + hashlen * (2 + merkledepth + 2 * subkey_count);
 				if (sigstring.length() != expected_length) {
 					throw std::invalid_argument("Wrong signature size.");
@@ -400,10 +400,13 @@ namespace spqsigs {
 				std::string s_index = sigstring.substr(hashlen*2,2);
 				const unsigned char * us_index = reinterpret_cast<const unsigned char *>(s_index.c_str());
 				m_index = (us_index[0] << 8) + us_index[1];
+				m_mt_bits = non_api::as_bits<merkledepth>(m_index);
+				std::reverse(m_mt_bits.begin(), m_mt_bits.end());
 				for (int index=0; index < merkledepth; index++) {
 					m_merkle_tree_header.push_back(sigstring.substr(hashlen*(2+index)+2, hashlen));
 				}
-				for (int index=0; index < merkledepth; index++) {
+				std::reverse(m_merkle_tree_header.begin(), m_merkle_tree_header.end());
+				for (int index=0; index < subkey_count; index++) {
 					std::vector<std::string> newval;
 					for (int direction=0; direction<2; direction++) {
 						newval.push_back(sigstring.substr(2 + hashlen * (2 + merkledepth + 2 * index + direction),
@@ -426,10 +429,16 @@ namespace spqsigs {
 					std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
 					big_ots_pubkey += hashfunction(pk1, pk2); 
 				}
-				// FIXME: implement below.
-				// * reconstruct the merkle tree root
-				// * check the merkle tree root
-				return true;
+				std::cout << m_merkle_tree_header.size() << " : " << m_mt_bits.size() << std::endl;
+				std::string calculated_pubkey = big_ots_pubkey;
+				for (size_t index=0; index < m_mt_bits.size(); index++) {
+				    if  (m_mt_bits[index]) {
+                                        calculated_pubkey = hashfunction(m_merkle_tree_header[index], calculated_pubkey);
+				    } else {
+                                        calculated_pubkey = hashfunction(calculated_pubkey, m_merkle_tree_header[index]);
+				    }
+				}
+				return calculated_pubkey == m_pubkey;
 			}
 			uint32_t get_index() {
 				return m_index;
@@ -444,6 +453,7 @@ namespace spqsigs {
 			std::string m_pubkey;
 			std::string m_salt;
 			uint32_t m_index;
+			std::vector<bool> m_mt_bits;
 			std::vector<std::string> m_merkle_tree_header;
 			std::vector<std::vector<std::string>> m_signature_body;
 		};
