@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <exception>
 #include <iostream> //FIXME: remove iostream debugging
+#include <iomanip>
 #include <sodium.h>
 #include <arpa/inet.h>
 
@@ -115,6 +116,11 @@ namespace spqsigs {
 				};
 				//Hash the input with the salt 'times' times. This is used for wots chains.
 				std::string operator()(std::string &input, size_t times){
+					//std::cout << times << " times : ";
+                                        //for (const auto &item : input) {
+                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        //}
+					//std::cout << " -> ";
 					unsigned char output[hashlen];
 					strncpy(reinterpret_cast<char *>(output),
 							reinterpret_cast<const char *>(input.c_str()), hashlen);
@@ -127,10 +133,26 @@ namespace spqsigs {
 						crypto_generichash_blake2b_update(&state, output, hashlen);
 						crypto_generichash_blake2b_final(&state, output, hashlen);
 					}
-					return std::string(reinterpret_cast<const char *>(output), hashlen);
+					auto rval = std::string(reinterpret_cast<const char *>(output), hashlen);
+					//for (const auto &item : rval) {
+                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        //}
+					//std::cout << std::endl;
+					return rval;
 				};
 				//Hash two inputs with salts and return the digest.
 				std::string operator()(std::string &input, std::string &input2){
+					//std::cout << "input 1: ";
+                                        //for (const auto &item : input) {
+                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        //}
+					//std::cout << std::endl;
+					//std::cout << "input 2: ";
+                                        //for (const auto &item : input2) {
+                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        //}
+					//std::cout << std::endl;
+					//std::cout << std::endl;
 					unsigned char output[hashlen];
 					crypto_generichash_blake2b_state state;
 					crypto_generichash_blake2b_init(&state,
@@ -221,7 +243,7 @@ namespace spqsigs {
 					// We use the index operator for signing a chunk of 'wotsbits' bits
 					// encoded into an unsigned integer.
 					std::string operator [](uint32_t index) {
-						return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[0], (1<<wotsbits) - index -1);
+						return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[1], (1<<wotsbits) - index -1);
 					}
 					private:
 					primative<hashlen, wotsbits, merkledepth> &m_hashprimative; // The core hashing primative
