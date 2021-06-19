@@ -317,24 +317,41 @@ namespace spqsigs {
 					return m_merkle_tree[""];
 				};
 				std::string operator [](uint32_t signing_key_index)  {
+					std::cout << "###########  Merkle Tree Header #####################" << std::endl;
+					std::cout << "                 " << signing_key_index << std::endl;
 					if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
 						this->populate<merkledepth>(0, "");
 					}
 					std::vector<bool> index_bits = non_api::as_bits<merkledepth>(signing_key_index);
 					std::string rval;
+					std::cout << "merkle-depth = " << int(merkledepth) << std::endl;
 					for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
 						std::string key;
-						for (unsigned char index; index<bindex; index++) {
-							key += index_bits[index] ? "1" : "0";
+						std::cout << "----------  bindex = " << int(bindex) << " -------------------" << std::endl;
+						std::cout << "   bits: ";
+						for (unsigned char index=0; index<bindex; index++) {
+							std::cout << index_bits[index] << " ";
+							key += index_bits[index] ? std::string("1") : std::string("0");
 						}
-						key += index_bits[bindex] ? "0" : "1";
+						std::cout << index_bits[bindex] << std::endl;
+						key += index_bits[bindex] ? std::string("0") : std::string("1");
+						std::cout  << "   - " << int(bindex) << " : '" << key << "'" << std::endl;
 						rval += m_merkle_tree[key];
+                                                std::cout << "     + ";
+                                                for (const auto &item : m_merkle_tree[key]) {
+                                                    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                                }
+						std::cout << std::endl;
 					}
+					std::cout << " ##################################################" << std::endl;
 					return rval;
 				};
 				private:
 				template<unsigned char remaining_depth>
 					std::string populate(uint32_t start, std::string prefix) {
+						if (prefix == "") {
+						    std::cout << " ################### Populating merkle tree ###################" << std::endl;
+						}
 						if constexpr (remaining_depth != 0) {
 							//if constexpr (use_threads<merkledepth, remaining_depth, do_threads>()) {
 							// FIXME: Run the two sub-trees in seperate threaths ans wait for results
@@ -345,8 +362,16 @@ namespace spqsigs {
 									prefix + "1");
 							m_merkle_tree[prefix] = m_hashfunction(left, right);
 						} else {
+							std::cout << "    prefix : " << prefix << " : ";
 							std::string pkey = m_private_keys[start].pubkey();
 							m_merkle_tree[prefix] =  m_hashfunction(pkey);
+							for (const auto &item : m_merkle_tree[prefix]) {
+                                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                                        }
+							std::cout << std::endl;
+						}
+						if (prefix == "") {
+                                                    std::cout <<  "#############################################################" << std::endl;
 						}
 						return m_merkle_tree[prefix];
 					}
@@ -451,14 +476,43 @@ namespace spqsigs {
 					std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
 					big_ots_pubkey += hashfunction(pk1, pk2); 
 				}
-				std::cout << m_merkle_tree_header.size() << " : " << m_mt_bits.size() << std::endl;
-				std::string calculated_pubkey = big_ots_pubkey;
+				//std::cout << m_merkle_tree_header.size() << " : " << m_mt_bits.size() << std::endl;
+				std::string calculated_pubkey = hashfunction(big_ots_pubkey);
+                                //for (const auto &item : calculated_pubkey) {
+                                //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                //}
+                                //std::cout << std::endl;
+				std::cout << "################# VALIDATE #####################" << std::endl;
 				for (size_t index=0; index < m_mt_bits.size(); index++) {
+				    std::cout << "                " << index << "  :  " << m_mt_bits[index] << std::endl; 
 				    if  (m_mt_bits[index]) {
-                                        calculated_pubkey = hashfunction(m_merkle_tree_header[index], calculated_pubkey);
+					for (const auto &item : m_merkle_tree_header[index]) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+					}
+					std::cout << " + ";
+					for (const auto &item : calculated_pubkey) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+					}
+					calculated_pubkey = hashfunction(m_merkle_tree_header[index], calculated_pubkey);
+					std::cout << " -> ";
+					for (const auto &item : calculated_pubkey) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        }
 				    } else {
+					for (const auto &item : calculated_pubkey) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        }
+					std::cout << " + ";
+					for (const auto &item : m_merkle_tree_header[index]) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        }
                                         calculated_pubkey = hashfunction(calculated_pubkey, m_merkle_tree_header[index]);
+					std::cout << " -> ";
+					for (const auto &item : calculated_pubkey) {
+                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
+                                        }
 				    }
+				    std::cout << std::endl;
 				}
 				return calculated_pubkey == m_pubkey;
 			}
