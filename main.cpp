@@ -1,9 +1,12 @@
 #include <iostream>
 #include "spq_sigs.hpp"
 
-constexpr unsigned char hashlen=24;
-constexpr unsigned char wotsbits=12;
-constexpr unsigned char merkledepth=10;
+//constexpr unsigned char hashlen=24;
+//constexpr unsigned char wotsbits=12;
+//constexpr unsigned char merkledepth=10;
+constexpr unsigned char hashlen=8;
+constexpr unsigned char wotsbits=4;
+constexpr unsigned char merkledepth=4;
 constexpr bool do_threads=true;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkledepth, do_threads > signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkledepth> verifyable_signature;

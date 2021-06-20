@@ -134,6 +134,7 @@ namespace spqsigs {
 					strncpy(reinterpret_cast<char *>(output),
 							reinterpret_cast<const char *>(input.c_str()), hashlen);
 					crypto_generichash_blake2b_state state;
+					std::cout << "wots " << times << " " << non_api::as_hex(std::string(reinterpret_cast<const char *>(output), hashlen)) << " : ";
 					for (uint32_t index=0;index < times; index++) {
 						crypto_generichash_blake2b_init(&state,
 								reinterpret_cast<const unsigned char *>(m_salt.c_str()),
@@ -141,7 +142,9 @@ namespace spqsigs {
 								hashlen);
 						crypto_generichash_blake2b_update(&state, output, hashlen);
 						crypto_generichash_blake2b_final(&state, output, hashlen);
+						std::cout << non_api::as_hex(std::string(reinterpret_cast<const char *>(output), hashlen)) << " ";
 					}
+					std::cout << std::endl;
 					auto rval = std::string(reinterpret_cast<const char *>(output), hashlen);
 					return rval;
 				};
@@ -233,7 +236,7 @@ namespace spqsigs {
 							std::string privkey_1 = m_hashprimative(m_private[0], 1<<wotsbits);
 							std::string privkey_2 = m_hashprimative(m_private[1], 1<<wotsbits);
 							m_public = m_hashprimative(privkey_1, privkey_2);
-							std::cout << "sub-pub(" << m_index << "," << m_subindex << ") : left = " << non_api::as_hex(privkey_1) << ", right = " << non_api::as_hex(privkey_1) << ", pubkey = " << non_api::as_hex(m_public) << std::endl;
+							std::cout << "sub-pub(" << m_index << "," << m_subindex << ") : left = " << non_api::as_hex(privkey_1) << ", right = " << non_api::as_hex(privkey_2) << ", pubkey = " << non_api::as_hex(m_public) << std::endl;
 						}
 						return m_public;
 					};
@@ -404,6 +407,7 @@ namespace spqsigs {
 					this->m_merkle_tree[m_next_index] +
 					this->m_privkeys[m_next_index][digest];
 				this->m_next_index++;
+				std::cout << "big-ass-signature: " << non_api::as_hex(rval) << std::endl;
 				return rval;
 			};
 			std::string sign_message(std::string &message) {
