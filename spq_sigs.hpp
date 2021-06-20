@@ -29,6 +29,20 @@ namespace spqsigs {
 
 	namespace non_api {
 
+		// binary string to hex
+		std::string as_hex(std::string binary) {
+		    std::string rval;
+		    const char *charset = "0123456789ABCDEF";
+		    for (unsigned int index=0; index < binary.size(); index++) {
+		        unsigned char chr =  reinterpret_cast<const unsigned char *>(binary.c_str())[index];
+                        int b1 = (chr / 16) % 16;
+			int b2 = chr % 16;
+			rval += charset[b1];
+			rval += charset[b2];
+		    }
+		    return rval;
+		}
+
 		// declaration for private_keys class template 
 		template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint32_t pubkey_size>
 			struct private_keys;
@@ -116,11 +130,6 @@ namespace spqsigs {
 				};
 				//Hash the input with the salt 'times' times. This is used for wots chains.
 				std::string operator()(std::string &input, size_t times){
-					//std::cout << times << " times : ";
-                                        //for (const auto &item : input) {
-                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        //}
-					//std::cout << " -> ";
 					unsigned char output[hashlen];
 					strncpy(reinterpret_cast<char *>(output),
 							reinterpret_cast<const char *>(input.c_str()), hashlen);
@@ -134,25 +143,10 @@ namespace spqsigs {
 						crypto_generichash_blake2b_final(&state, output, hashlen);
 					}
 					auto rval = std::string(reinterpret_cast<const char *>(output), hashlen);
-					//for (const auto &item : rval) {
-                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        //}
-					//std::cout << std::endl;
 					return rval;
 				};
 				//Hash two inputs with salts and return the digest.
 				std::string operator()(std::string &input, std::string &input2){
-					//std::cout << "input 1: ";
-                                        //for (const auto &item : input) {
-                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        //}
-					//std::cout << std::endl;
-					//std::cout << "input 2: ";
-                                        //for (const auto &item : input2) {
-                                        //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        //}
-					//std::cout << std::endl;
-					//std::cout << std::endl;
 					unsigned char output[hashlen];
 					crypto_generichash_blake2b_state state;
 					crypto_generichash_blake2b_init(&state,
@@ -217,6 +211,8 @@ namespace spqsigs {
 							std::string seed,
 							size_t index,
 							size_t subindex):
+						m_index(index),
+						m_subindex(subindex),
 						m_hashprimative(hashprimative),
 						m_private(), m_public("") {
 							for (size_t side=0; side < 2; side ++) {
@@ -237,6 +233,7 @@ namespace spqsigs {
 							std::string privkey_1 = m_hashprimative(m_private[0], 1<<wotsbits);
 							std::string privkey_2 = m_hashprimative(m_private[1], 1<<wotsbits);
 							m_public = m_hashprimative(privkey_1, privkey_2);
+							std::cout << "sub-pub(" << m_index << "," << m_subindex << ") : left = " << non_api::as_hex(privkey_1) << ", right = " << non_api::as_hex(privkey_1) << ", pubkey = " << non_api::as_hex(m_public) << std::endl;
 						}
 						return m_public;
 					};
@@ -246,6 +243,8 @@ namespace spqsigs {
 						return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[1], (1<<wotsbits) - index -1);
 					}
 					private:
+					size_t m_index;
+					size_t m_subindex;
 					primative<hashlen, wotsbits, merkledepth> &m_hashprimative; // The core hashing primative
 					std::vector<std::string> m_private;  // The private key as generated at construction.
 					std::string m_public;                // The public key, calculated lazy, on demand.
@@ -337,10 +336,7 @@ namespace spqsigs {
 						key += index_bits[bindex] ? std::string("0") : std::string("1");
 						std::cout  << "   - " << int(bindex) << " : '" << key << "'" << std::endl;
 						rval += m_merkle_tree[key];
-                                                std::cout << "     + ";
-                                                for (const auto &item : m_merkle_tree[key]) {
-                                                    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                                }
+                                                std::cout << "     + " << non_api::as_hex(m_merkle_tree[key]);
 						std::cout << std::endl;
 					}
 					std::cout << " ##################################################" << std::endl;
@@ -362,13 +358,14 @@ namespace spqsigs {
 									prefix + "1");
 							m_merkle_tree[prefix] = m_hashfunction(left, right);
 						} else {
-							std::cout << "    prefix : " << prefix << " : ";
+							std::cout << "    prefix : " << prefix << ", mt_node :  ";
 							std::string pkey = m_private_keys[start].pubkey();
 							m_merkle_tree[prefix] =  m_hashfunction(pkey);
-							for (const auto &item : m_merkle_tree[prefix]) {
-                                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                                        }
-							std::cout << std::endl;
+					                std::cout << non_api::as_hex(m_merkle_tree[prefix]);
+							if (prefix == "0000000000" or prefix == "0000000001") {
+								std::cout << ", pubkey : " << non_api::as_hex(pkey);
+							}
+							std::cout << std::endl; 
 						}
 						if (prefix == "") {
                                                     std::cout <<  "#############################################################" << std::endl;
@@ -469,48 +466,28 @@ namespace spqsigs {
 				auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
 				// * complete the wots chains
 				std::string big_ots_pubkey("");
+				std::cout << " #################### Calculating validation Pubkey ##########################" << std::endl;
 				for (size_t index=0; index < numlist.size(); index++) {
 					auto signature_chunk = m_signature_body[index];
 					int chunk_num = numlist[index];
 					std::string pk1 = hashfunction(signature_chunk[0], (1 << wotsbits) - chunk_num);
-					std::string pk2 = hashfunction(signature_chunk[1], chunk_num +1);
+					std::string pk2 = hashfunction(signature_chunk[1], chunk_num + 1);
+					std::cout << " + " << index << " left : " << non_api::as_hex(pk1) << ", right : " << non_api::as_hex(pk2) << std::endl;
 					big_ots_pubkey += hashfunction(pk1, pk2); 
 				}
-				//std::cout << m_merkle_tree_header.size() << " : " << m_mt_bits.size() << std::endl;
+				std::cout << "Big-ass pubkey : " << non_api::as_hex(big_ots_pubkey);
 				std::string calculated_pubkey = hashfunction(big_ots_pubkey);
-                                //for (const auto &item : calculated_pubkey) {
-                                //    std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                //}
-                                //std::cout << std::endl;
 				std::cout << "################# VALIDATE #####################" << std::endl;
 				for (size_t index=0; index < m_mt_bits.size(); index++) {
 				    std::cout << "                " << index << "  :  " << m_mt_bits[index] << std::endl; 
 				    if  (m_mt_bits[index]) {
-					for (const auto &item : m_merkle_tree_header[index]) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-					}
-					std::cout << " + ";
-					for (const auto &item : calculated_pubkey) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-					}
+					std::cout << non_api::as_hex(m_merkle_tree_header[index]) <<  " + " << non_api::as_hex(calculated_pubkey) ;
 					calculated_pubkey = hashfunction(m_merkle_tree_header[index], calculated_pubkey);
-					std::cout << " -> ";
-					for (const auto &item : calculated_pubkey) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        }
+					std::cout << " -> " << non_api::as_hex(calculated_pubkey) ;
 				    } else {
-					for (const auto &item : calculated_pubkey) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        }
-					std::cout << " + ";
-					for (const auto &item : m_merkle_tree_header[index]) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        }
+					std::cout << non_api::as_hex(calculated_pubkey) << " + " << non_api::as_hex(m_merkle_tree_header[index]); 
                                         calculated_pubkey = hashfunction(calculated_pubkey, m_merkle_tree_header[index]);
-					std::cout << " -> ";
-					for (const auto &item : calculated_pubkey) {
-                                            std::cout << std::setfill('0') << std::setw(4) << std::hex << int16_t(item);
-                                        }
+					std::cout << " -> " << non_api::as_hex(calculated_pubkey) ;
 				    }
 				    std::cout << std::endl;
 				}
