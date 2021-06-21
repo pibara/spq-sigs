@@ -8,7 +8,9 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 
 ## status
 
-* An untested signing key has been implemented
+* A signing key has been implemented.
+* A signature validator has been implemented.
+* The C++ signing key has been tested to work with the validator.
 * Basic compiler flag based code quality has been enforced. 
 * Currently working on a signature deserialization and validator class.
 
@@ -16,7 +18,6 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 
 * Add multi-threading
 * private key serialization and de-serialization
-* Test validator with C++ signingkey impl
 * Work on const-correctness.
 * Test signing/validation cross language compatability and fix if needed.
 * Test serialization/deserialization python/c++ cross-compatibility.
