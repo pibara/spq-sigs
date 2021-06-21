@@ -16,11 +16,17 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 
 ## todo
 
+* Implement multi-tree signing keys and signatures
+* Private key serialization and de-serialization
+* Private key password protection (use libsodium)
+* Intermediate signature caching
 * Add multi-threading
-* private key serialization and de-serialization
 * Work on const-correctness.
-* Test signing/validation cross language compatability and fix if needed.
-* Test serialization/deserialization python/c++ cross-compatibility.
 * Document usage
 * Add a sample project with cmake and stuff.
+
+## todo (post Python backport)
+
+* Test signing/validation cross language compatability and fix if needed.
+* Test serialization/deserialization python/c++ cross-compatibility.
 

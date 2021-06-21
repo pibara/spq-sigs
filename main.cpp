@@ -1,12 +1,6 @@
 #include <iostream>
 #include "spq_sigs.hpp"
 
-constexpr unsigned char hashlen=24;
-constexpr unsigned char wotsbits=12;
-constexpr unsigned char merkledepth=10;
-constexpr bool do_threads=true;
-typedef spqsigs::signing_key<hashlen, wotsbits, merkledepth, do_threads > signing_key;
-typedef spqsigs::signature<hashlen, wotsbits, merkledepth> verifyable_signature;
 
 std::string as_hex(std::string binary) {
     std::string rval;
@@ -20,6 +14,13 @@ std::string as_hex(std::string binary) {
     }
     return rval;
 }
+
+constexpr unsigned char hashlen=24;
+constexpr unsigned char wotsbits=12;
+constexpr unsigned char merkledepth=10;
+constexpr bool do_threads=true;
+typedef spqsigs::signing_key<hashlen, wotsbits, merkledepth, do_threads > signing_key;
+typedef spqsigs::signature<hashlen, wotsbits, merkledepth> verifyable_signature;
 
 int main() {
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
@@ -52,6 +53,6 @@ int main() {
     try {
         std::string signature2 = skey.sign_message(msg);
     } catch (const spqsigs::signingkey_exhausted&) {
-        std::cout << "Cought expected exception." << std::endl;
+        std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
     }
 }
