@@ -17,28 +17,35 @@ std::string as_hex(std::string binary) {
 
 constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
-constexpr unsigned char merkledepth=10;
-constexpr bool do_threads=true;
-typedef spqsigs::signing_key<hashlen, wotsbits, merkledepth, do_threads > signing_key;
-typedef spqsigs::signature<hashlen, wotsbits, merkledepth> verifyable_signature;
+constexpr unsigned char merkleheight=10;
+typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
+typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
+typedef spqsigs::multitree_signing_key<hashlen, wotsbits, merkleheight, merkleheight> signing_key_2l;
+typedef spqsigs::multitree_signature<hashlen, wotsbits, merkleheight, merkleheight> verifyable_signature_2l;
+typedef spqsigs::multitree_signing_key<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> signing_key_3l;
+typedef spqsigs::multitree_signature<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> verifyable_signature_3l;
 
 int main() {
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
-    std::cout << " - key meant to sign " <<  (1 << merkledepth) << " messages" << std::endl;
+    std::cout << " - key meant to sign " <<  (1 << merkleheight) << " messages" << std::endl;
+    auto skey2l = signing_key_2l();
+    auto skey3l = signing_key_3l();
     auto skey = signing_key();
     std::cout << "Signing key generated, running signing test." << std::endl;
     std::string msg("This is just a test.");
     int ok_count = 0;
     int fail_count = 0;
     int except_count = 0;
-    for (int ind=0; ind < (1 << merkledepth); ind++) {
+    for (int ind=0; ind < (1 << merkleheight); ind++) {
 	try {
-            std::cout << std::endl << "Making signature " << ind << " out of " << (1 << merkledepth) << std::endl;
+            std::cout << std::endl << "Making signature " << ind << " out of " << (1 << merkleheight) << std::endl;
             std::string signature = skey.sign_message(msg);
             std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
 	    std::cout << "signature: " << as_hex(signature) << std::endl;
 	    std::cout << std::endl << "Parsing signature" << std::endl;
             auto sign = verifyable_signature(signature);
+	    auto sign2 = verifyable_signature_2l(signature);
+	    auto sign3 = verifyable_signature_3l(signature);
             std::cout << "validating" << std::endl;
             if (sign.validate(msg)) {
                 ok_count += 1;

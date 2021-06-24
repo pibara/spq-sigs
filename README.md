@@ -12,17 +12,17 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 * A signature validator has been implemented.
 * The C++ signing key has been tested to work with the validator.
 * Basic compiler flag based code quality has been enforced. 
-* Currently working on a signature deserialization and validator class.
+* Added some long overdue comments to the code.
 
 ## todo
 
-* Implement multi-tree signing keys and signatures
-* Private key serialization and de-serialization
-* Private key password protection (use libsodium)
-* Intermediate signature caching
-* Add multi-threading
+* Implement multi-tree signing keys and signatures.
+* Private key serialization and de-serialization.
+* Private key password protection (use libsodium).
+* Intermediate signature caching.
+* Add multi-threading.
 * Work on const-correctness.
-* Document usage
+* Document usage.
 * Add a sample project with cmake and stuff.
 
 ## todo (post Python backport)

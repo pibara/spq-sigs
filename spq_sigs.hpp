@@ -20,30 +20,25 @@
 #include <exception>
 #include <iostream>
 
-struct myException : std::exception
-{
-    using std::exception::exception;
-};
-
 
 namespace spqsigs {
 	struct signingkey_exhausted : std::exception
         {
             using std::exception::exception;
         };
-	//Empty class for calling constructor of hashing primative with a request to use a newly
-	//generated salt.
-	class GENERATE {};
 	// declaration for signing_key class template defined at bottom of this file. 
-	template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkledepth=10, bool do_threads=false>
+	template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkleheight=10>
 		struct signing_key;
-        template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
+        template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
                 struct signature;
 
+	// Anything in the non_api sub namespace is not part of the public API of this single-file header-only library.
 	namespace non_api {
-
+                //Empty class for calling constructor of hashing primative with a request to use a newly
+                //generated salt.
+                class GENERATE {};
 		// declaration for private_keys class template 
-		template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint32_t pubkey_size>
+		template<unsigned char hashlen,  unsigned char merkleheight, unsigned char wotsbits, uint32_t pubkey_size>
 			struct private_keys;
 
 		// Helper function for converting a digest to a vector of numbers that can be signed using a
@@ -51,61 +46,70 @@ namespace spqsigs {
 		template<unsigned char hashlen, unsigned char wotsbits>
 			std::vector<uint32_t> digest_to_numlist(std::string &msg_digest) {
 				std::vector<uint32_t> rval;
+				//Calculate (compile-time) how many sub-keys are needed for signing hashlen bytes of data
 				constexpr static int subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+                                //Calculate how many aditional bits we need to pad our input with because subkey_count would give us sligthly more than hashlen input to sign.
 				constexpr static size_t morebits = subkey_count * wotsbits - hashlen * 8;
+				//variable used to store remaing bits from previous subkey signature (or padding at operation start)
 				uint32_t val = 0;
+				//remaining bits to sign with single subkey
 				uint32_t remaining_bits = wotsbits - morebits;
+				//byte of input digest we are currently signing
 				uint32_t byteindex = 0;
+				//Cast to unsigned for use with libsodium
 				const unsigned char *data = reinterpret_cast<const unsigned char *>(msg_digest.c_str());
 				while (byteindex < hashlen) {
+					//Add whole bytes to val before signing.
 					while (remaining_bits > 8) {
 						val = (val << 8) + data[byteindex];
 						byteindex +=1;
 						remaining_bits -= 8;
 					}
+					//Add partial byte to val before signing
 					val = (val << remaining_bits) + (data[byteindex] >> (8-remaining_bits));
+					//Append the value to sign to the return vector of this function
 					rval.push_back(val);
+                                        //Zero out bits of current bytes already used for the value just applied
 					uint32_t val2 = ((data[byteindex] << remaining_bits) & 255) >> remaining_bits;
+					//Number of bits actually used for next value by previous operation.
 					uint32_t used_bits = 8 - remaining_bits;
+					//If wotsbits is smaller than a byte, see if we need to push back more signable numbers for the current byte.
 					while (used_bits >= wotsbits) {
+						//Shift-left val2 as to get the next value
 						val = val2 >> (used_bits - wotsbits);
+						//Add sub-byte signable value to return vector
 						rval.push_back(val);
+						//Once more, calculate number of bits actually used for next value by previous operation. 
 						used_bits -= wotsbits;
+						//Zero out more bits of current bytes already used for the value just applied
 						val2 = ((val2 << (8-used_bits)) & 255) >> (8-used_bits);
 					}
+					//use val2 in the next time around (if any).
 					val = val2;
+					// remaining bits to sign with single subkey next time around the loop
 					remaining_bits = wotsbits - used_bits;
+					// On to the next digest byte.
 					byteindex +=1;
 				}
 				return rval;
 			}
 
-		// Helper function for use in merkletree creation (key creation). Determine if two branches
-		// should be handled by paralel threads at given level. 
-		template<unsigned char merkledepth, unsigned char remaining_depth, bool do_threads>
-			constexpr bool use_threads() {
-				if constexpr ((do_threads == false) or 
-						(merkledepth < 4) or 
-						(merkledepth - remaining_depth > 2)) {
-					return false;
-				} else {
-					return true;
-				}
-			}
-
 		//Helper function for turning a small number into a vector of booleans (bits).
-		template<unsigned char merkledepth>
+		template<unsigned char merkleheight>
 			std::vector<bool> as_bits(uint32_t signing_key_index) {
 				std::vector<bool> rval;
-				for (unsigned char index=merkledepth; index>0; index--) {
+				//Go from left (higher index value) to right (zero).
+				for (unsigned char index=merkleheight; index>0; index--) {
+					//Convert one bit into a boolean.
 					bool val = (((signing_key_index >> (index - 1)) & 1) == 1);
+					//Add boolena to return vector.
 					rval.push_back(val);
 				}
 				return rval;
 			}
 
 		// Hashing primative for 'hashlen' long digests, with a little extra. The hashing primative runs using libsodium.
-		template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
+		template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
 			struct primative {
 				// Virtual distructor
 				virtual ~primative(){}
@@ -131,8 +135,6 @@ namespace spqsigs {
 				std::string operator()(std::string &input, size_t times){
 					unsigned char output[hashlen];
 					std::memcpy(output, input.c_str(), hashlen);
-					//strncpy(reinterpret_cast<char *>(output),
-					//		reinterpret_cast<const char *>(input.c_str()), hashlen);
 					crypto_generichash_blake2b_state state;
 					for (uint32_t index=0;index < times; index++) {
 						crypto_generichash_blake2b_init(&state,
@@ -188,9 +190,8 @@ namespace spqsigs {
 				std::string get_salt() {
 					return m_salt;
 				}
-				friend signing_key<hashlen, wotsbits, merkledepth, true>;
-				friend signing_key<hashlen, wotsbits, merkledepth, false>;
-				friend signature<hashlen, wotsbits, merkledepth>;
+				friend signing_key<hashlen, wotsbits, merkleheight>;
+				friend signature<hashlen, wotsbits, merkleheight>;
 				private:
 				// Standard constructor using an existing salt.
 				primative(std::string &salt): m_salt(salt) {}
@@ -201,13 +202,13 @@ namespace spqsigs {
 
 		//A private key is a collection of subkeys that together can create a one-time-signature for
 		// a single transaction/message digest.
-		template<unsigned char hashlen, int subkey_count, unsigned char wotsbits, unsigned char merkledepth, uint32_t pubkey_size>
+		template<unsigned char hashlen, int subkey_count, unsigned char wotsbits, unsigned char merkleheight, uint32_t pubkey_size>
 			struct private_key {
 				// A tiny chunk of a one-time (wots) signing key, able to sign a chunk of 'wotsbits' bits with.
 				struct subkey {
 					//constructor, takes hashing primative, a seed, the one-time-signature index and the
 					// chunk sub-index and created the chunk private for both direction wots chains.
-					subkey(primative<hashlen, wotsbits, merkledepth> &hashprimative,
+					subkey(primative<hashlen, wotsbits, merkleheight> &hashprimative,
 							std::string seed,
 							size_t index,
 							size_t subindex):
@@ -244,32 +245,41 @@ namespace spqsigs {
 					private:
 					size_t m_index;
 					size_t m_subindex;
-					primative<hashlen, wotsbits, merkledepth> &m_hashprimative; // The core hashing primative
+					primative<hashlen, wotsbits, merkleheight> &m_hashprimative; // The core hashing primative
 					std::vector<std::string> m_private;  // The private key as generated at construction.
 					std::string m_public;                // The public key, calculated lazy, on demand.
 				};
+				// Virtual destructor
 				virtual ~private_key(){};
+				//Get the pubkey for the single-use private key.
 				std::string pubkey() {
 					std::string rval("");
+					//Compose by concattenating the pubkey for all the sub keys.
 					std::for_each(std::begin(m_subkeys), std::end(m_subkeys), [&rval, this](subkey &value) {
 							rval += value.pubkey();
 							});
 					return rval;
 				};
+				//Note: the square bracket operator is used for signing a digest.
 				std::string operator [](std::string digest)  {
+					//Convert the digest to a list of numbers that we shall sign with the sub keys for this private key.
 					auto numlist = digest_to_numlist<hashlen, wotsbits>(digest);
 					std::string rval;
 					size_t nl_len = numlist.size();
+					//Concattenate all the subkey based signatures into one large signing key.
 					for(size_t index=0; index < nl_len; index++) {
 						rval += m_subkeys[index][numlist[index]];
 					};
 					return rval;
 				};
-				friend private_keys<hashlen, merkledepth, wotsbits, pubkey_size>;
+				//Only private_keys should invoke the constructor
+				friend private_keys<hashlen, merkleheight, wotsbits, pubkey_size>;
 				private:
-				private_key(primative<hashlen, wotsbits, merkledepth> &hashprimative,
+				//Private constructor, should only get invoked by private_keys
+				private_key(primative<hashlen, wotsbits, merkleheight> &hashprimative,
 						std::string seed,
 						size_t index): m_subkeys(){
+					//Compose from its sub-keys.
 					for(size_t subindex=0; subindex < subkey_count; subindex++) {
 						m_subkeys.push_back(subkey(hashprimative, seed, index, subindex));
 					}
@@ -277,170 +287,218 @@ namespace spqsigs {
 				std::vector<subkey> m_subkeys;
 			};
 
-		template<unsigned char hashlen,  unsigned char merkledepth, unsigned char wotsbits, uint32_t pubkey_size>
+		// Collection of all one-time signing keys belonging with a signing key
+		template<unsigned char hashlen,  unsigned char merkleheight, unsigned char wotsbits, uint32_t pubkey_size>
 			struct private_keys {
 				static constexpr uint32_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
+				// Virtual destructor
 				virtual ~private_keys(){};
-				private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits, merkledepth, pubkey_size> &operator [](uint32_t index)  {
+				//Square bracket operator used to access specific private key.
+				private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits, merkleheight, pubkey_size> &operator [](uint32_t index)  {
 					return this->m_keys[index];
 				};
-				friend signing_key<hashlen, wotsbits, merkledepth, true>;
-				friend signing_key<hashlen, wotsbits, merkledepth, false>;
+				//Only signing_key should invoke the constructor for private_keys
+				friend signing_key<hashlen, wotsbits, merkleheight>;
 				private:
-				private_keys(primative<hashlen, wotsbits, merkledepth> &hashprimative, std::string seed): m_keys() {
+				//Private constructor, only to be called from signing_key
+				private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed): m_keys() {
+					// Construct from multiple private_key's
 					for (size_t index=0; index < pubkey_size; index++) {
 						m_keys.push_back(
-								private_key<hashlen, subkey_count, wotsbits, merkledepth, pubkey_size>(hashprimative, seed, index));
+								private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
 					}
 				};
-				std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkledepth, pubkey_size>>  m_keys;
+				std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkleheight, pubkey_size>>  m_keys;
 			};
 	}
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth, bool do_threads>
+	// Public API signing_key
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
 		struct signing_key {
+			// The merkle-tree that maps a larger collection of single use private/public keys, to a single merkle-root public key.
+			// Also used in encoding signatures. 
 			struct merkle_tree {
-				merkle_tree(non_api::primative<hashlen, wotsbits, merkledepth> & hashfunction,
+				//Merkle-tree constructor
+				merkle_tree(non_api::primative<hashlen, wotsbits, merkleheight> & hashfunction,
 						non_api::private_keys<hashlen,
-						merkledepth,
+						merkleheight,
 						wotsbits,
-						static_cast<unsigned short>(1) << merkledepth > &privkey): m_hashfunction(hashfunction),
+						static_cast<unsigned short>(1) << merkleheight > &privkey): m_hashfunction(hashfunction),
 				m_private_keys(privkey),
 				m_merkle_tree() {
 				};
+				//Virtual destructor
 				virtual ~merkle_tree(){};
+				//Get the merkle-root, what is the same as the signing_key public key.
 				std::string pubkey() {
+					//Populate the tree if it hasn't already been.
 					if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-						this->populate<merkledepth>(0, "");
+						this->populate<merkleheight>(0, "");
 					}
+					//Return the merkle root
 					return m_merkle_tree[""];
 				};
+                                //Square bracket operator is used to get the merkle-tree signature-header for a given signing key index number.
+				//The merkle-tree signature-header contains those merkle tree node hashes needed to get from the wots signature
+				//public key to the merkle root node.
 				std::string operator [](uint32_t signing_key_index)  {
+					//Populate if needed.
 					if ( m_merkle_tree.find("") == m_merkle_tree.end() ) {
-						this->populate<merkledepth>(0, "");
+						this->populate<merkleheight>(0, "");
 					}
-					std::vector<bool> index_bits = non_api::as_bits<merkledepth>(signing_key_index);
+					//Convert the signing key index into a vector of booleans
+					std::vector<bool> index_bits = non_api::as_bits<merkleheight>(signing_key_index);
 					std::string rval;
-					for (unsigned char bindex=0; bindex < merkledepth; bindex++) {
+                                        // For each depth in the tree extract one node.
+					for (unsigned char bindex=0; bindex < merkleheight; bindex++) {
 						std::string key;
+						//For each bit of a given depth, except the last, pick use the input designation
 						for (unsigned char index=0; index<bindex; index++) {
 							key += index_bits[index] ? std::string("1") : std::string("0");
 						}
+						//For the last bit, get the oposing node.
 						key += index_bits[bindex] ? std::string("0") : std::string("1");
 						rval += m_merkle_tree[key];
 					}
 					return rval;
 				};
 				private:
-				template<unsigned char remaining_depth>
+				//Populate the merkle tree by populating the public keys for all the private keys of the signing key.
+				//Populating is initiated at merkleheight height, and works its way down.
+				template<unsigned char remaining_height>
 					std::string populate(uint32_t start, std::string prefix) {
-						if constexpr (remaining_depth != 0) {
-							//if constexpr (use_threads<merkledepth, remaining_depth, do_threads>()) {
-							// FIXME: Run the two sub-trees in seperate threaths ans wait for results
-							//std::cerr << "threaded: " << prefix << std::endl;
-							//}
-							std::string left = this->populate<remaining_depth-1>(start,prefix + "0");
-							std::string right = this->populate<remaining_depth-1>(start + (1 << (remaining_depth - 1)),
+						if constexpr (remaining_height != 0) {
+							//Polulate the left branch and get the top node hash
+							std::string left = this->populate<remaining_height-1>(start,prefix + "0");
+							//Populate the right branch and get the top node hash
+							std::string right = this->populate<remaining_height-1>(start + (1 << (remaining_height - 1)),
 									prefix + "1");
+							//Set the node hash value at this level.
 							m_merkle_tree[prefix] = m_hashfunction(left, right);
 						} else {
+							//Leaf-node, the salted hash of the  wots pubkey.
 							std::string pkey = m_private_keys[start].pubkey();
 							m_merkle_tree[prefix] =  m_hashfunction(pkey);
 						}
 						return m_merkle_tree[prefix];
 					}
-				non_api::primative<hashlen, wotsbits, merkledepth> &m_hashfunction;
+				non_api::primative<hashlen, wotsbits, merkleheight> &m_hashfunction;
 				non_api::private_keys<hashlen,
-					merkledepth,
+					merkleheight,
 					wotsbits,
-					static_cast<unsigned short>(1) << merkledepth > m_private_keys;
+					static_cast<unsigned short>(1) << merkleheight > m_private_keys;
 				std::map<std::string, std::string> m_merkle_tree;
 			};
+			//Signing key instantiation constraints.
+			//Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
 			static_assert(hashlen > 2);
 			static_assert(hashlen < 65);
+			//The number of bits used for wots encoding must be 3 upto 16 bits. 
 			static_assert(wotsbits < 17);
 			static_assert(wotsbits > 2);
-			static_assert(merkledepth < 17);
-			static_assert(merkledepth > 2);
+			//The height of a singe merkle-tree must be 3 up to 16 levels.
+			static_assert(merkleheight < 17);
+			static_assert(merkleheight > 2);
 			signing_key(): m_next_index(0),
-			    m_seed(non_api::primative<hashlen, wotsbits, merkledepth>::make_seed()),
-			    m_hashfunction(GENERATE()),
+			    m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
+			    m_hashfunction(non_api::GENERATE()),
 			    m_privkeys(m_hashfunction, m_seed),
 			    m_merkle_tree(m_hashfunction, m_privkeys) {
 				    //Get pubkey as a way to populate.
 				    this->m_merkle_tree.pubkey();
 			};
+			//Future API for restoring a signing key from serialization.
 			signing_key(std::string serialized) {
 				throw std::runtime_error("not yet implemented");
 			};
+			//Sign a hashlength bytes long digest.
 			std::string sign_digest(std::string &digest) {
 				assert(digest.length() == hashlen);
-				if (this->m_next_index >= (1 << merkledepth)) {
+				//Throw an exception when key is already fully exhausted
+				if (this->m_next_index >= (1 << merkleheight)) {
                                     throw signingkey_exhausted();
 				}
+				//Get the signature index in network order.
 				uint16_t ndx = htons(this->m_next_index);
 				std::string ndxs = std::string(reinterpret_cast<const char *>(&ndx), 2);
-				std::string rval = this->m_merkle_tree.pubkey() +
-					this->m_hashfunction.get_salt() +
-					ndxs +
-					this->m_merkle_tree[m_next_index] +
-					this->m_privkeys[m_next_index][digest];
+				//Compose the signature of its parts.
+				std::string rval = this->m_merkle_tree.pubkey() + //The signing key's pubkey
+					this->m_hashfunction.get_salt() +         //The signing key's salt
+					ndxs +                                    //The signature wots priv/pubkey index
+					this->m_merkle_tree[m_next_index] +       //The merkle-tree header, a collection of merkle tree nodes needed to get from wots signatures to pubkey.
+					this->m_privkeys[m_next_index][digest];   //The collection of wots signatures.
 				this->m_next_index++;
 				return rval;
 			};
+			//Sign an arbitrary length message
 			std::string sign_message(std::string &message) {
+				//Take the hash of the message.
 				std::string digest = m_hashfunction(message);
+				//Sign the hash
 				return this->sign_digest(digest);	 
 			};
+			//Future API call for serializing the signing key.
 			std::string get_state() {
 				// FIXME: implement serialize
 				throw std::runtime_error("not yet implemented");
 			}
+			//Virtual destructor
 			virtual ~signing_key(){}
 			private:
 			uint16_t m_next_index;
 			std::string m_seed;
-			non_api::primative<hashlen, wotsbits, merkledepth> m_hashfunction;
-			non_api::private_keys<hashlen, merkledepth, wotsbits, static_cast<unsigned short>(1) << merkledepth > m_privkeys;
+			non_api::primative<hashlen, wotsbits, merkleheight> m_hashfunction;
+			non_api::private_keys<hashlen, merkleheight, wotsbits, static_cast<unsigned short>(1) << merkleheight > m_privkeys;
 			merkle_tree m_merkle_tree;
 		};
 
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkledepth>
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char ... Args>
+                struct multitree_signing_key {
+                    multitree_signing_key() {}
+                    std::string sign_message(std::string &message){
+		        return "bogus";
+		    }
+		    std::string get_state() {
+		        return "bogus";
+		    }
+		    virtual ~multitree_signing_key(){}
+		};
+
+	//Public-API signature
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
 		struct signature {
 			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_mt_bits() ,m_merkle_tree_header(), m_signature_body() {
-				static_assert(hashlen > 2);
-				static_assert(hashlen < 65);
-				static_assert(wotsbits < 17);
-				static_assert(wotsbits > 2);
-				static_assert(merkledepth < 17);
-				static_assert(merkledepth > 2);
-				// * check signature length
+				//Signature instantiation constraints.
+                                //Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
+                                static_assert(hashlen > 2);
+                                static_assert(hashlen < 65);
+                                //The number of bits used for wots encoding must be 3 upto 16 bits.
+                                static_assert(wotsbits < 17);
+                                static_assert(wotsbits > 2);
+                                //The height of a singe merkle-tree must be 3 up to 16 levels.
+                                static_assert(merkleheight < 17);
+                                static_assert(merkleheight > 2);
 				constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
-				constexpr size_t expected_length = 2 + hashlen * (2 + merkledepth + 2 * subkey_count);
+                                constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
+				// * check signature length
 				if (sigstring.length() != expected_length) {
 					throw std::invalid_argument("Wrong signature size.");
 				}
-				// * get pubkey, salt, index, mt-header and wots-body
-                                // m_pubkey = sigstring.substr(0,hashlen);
+				// * get pubkey, salt, index, mt-header and wots-body and store them till validate gets invoked
 				m_pubkey = std::string(sigstring.c_str(), hashlen);
-				// m_salt = sigstring.substr(hashlen,hashlen);
 				m_salt = std::string(sigstring.c_str()+hashlen, hashlen);
-				//std::string s_index = sigstring.substr(hashlen*2,2);
 				std::string s_index = std::string(sigstring.c_str()+hashlen*2, 2);
 				const unsigned char * us_index = reinterpret_cast<const unsigned char *>(s_index.c_str());
 				m_index = (us_index[0] << 8) + us_index[1];
-				m_mt_bits = non_api::as_bits<merkledepth>(m_index);
+				m_mt_bits = non_api::as_bits<merkleheight>(m_index);
 				std::reverse(m_mt_bits.begin(), m_mt_bits.end());
-				for (int index=0; index < merkledepth; index++) {
-					// m_merkle_tree_header.push_back(sigstring.substr(hashlen*(2+index)+2, hashlen));
+				for (int index=0; index < merkleheight; index++) {
 					m_merkle_tree_header.push_back(std::string(sigstring.c_str()+hashlen*(2+index)+2, hashlen));
 				}
 				std::reverse(m_merkle_tree_header.begin(), m_merkle_tree_header.end());
 				for (int index=0; index < subkey_count; index++) {
 					std::vector<std::string> newval;
 					for (int direction=0; direction<2; direction++) {
-						//newval.push_back(sigstring.substr(2 + hashlen * (2 + merkledepth + 2 * index + direction),
-						//			hashlen));
-						newval.push_back(std::string(sigstring.c_str()+2 + hashlen * (2 + merkledepth + 2 * index + direction),
+						newval.push_back(std::string(sigstring.c_str()+2 + hashlen * (2 + merkleheight + 2 * index + direction),
                                                                         hashlen));
 					}
 					m_signature_body.push_back(newval);
@@ -448,19 +506,24 @@ namespace spqsigs {
 			}
 			bool validate(std::string message) {
 				// * get the message digest
-				non_api::primative<hashlen, wotsbits, merkledepth> hashfunction(m_salt);
+				non_api::primative<hashlen, wotsbits, merkleheight> hashfunction(m_salt);
 				std::string digest = hashfunction(message);
+				//Convert the digest to a list of numbers, the same list used for signing.
 				auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
-				// * complete the wots chains
+				// * complete the wots chains and calculate what should be the WOTS pubkey for this index.
 				std::string big_ots_pubkey("");
 				for (size_t index=0; index < numlist.size(); index++) {
 					auto signature_chunk = m_signature_body[index];
 					int chunk_num = numlist[index];
+					//Complete wots chains
 					std::string pk1 = hashfunction(signature_chunk[0], (1 << wotsbits) - chunk_num);
 					std::string pk2 = hashfunction(signature_chunk[1], chunk_num + 1);
+					//Combine left and right into one pubkey and append that to the big WOTS pubkey reconstruction.
 					big_ots_pubkey += hashfunction(pk1, pk2); 
 				}
+				//Take the salted hash of the large WOTS pubkey reconstruction
 				std::string calculated_pubkey = hashfunction(big_ots_pubkey);
+				//Reconstruct what should be the pubkey from the previous hash and the merkle-tree header nodes.
 				for (size_t index=0; index < m_mt_bits.size(); index++) {
 				    if  (m_mt_bits[index]) {
 					calculated_pubkey = hashfunction(m_merkle_tree_header[index], calculated_pubkey);
@@ -468,14 +531,18 @@ namespace spqsigs {
                                         calculated_pubkey = hashfunction(calculated_pubkey, m_merkle_tree_header[index]);
 				    }
 				}
+				//If everything is irie, the pubkey and the reconstructed pubkey should be the same.
 				return calculated_pubkey == m_pubkey;
 			}
+			//Get the current index, this is the statefull part of the signing key.
 			uint32_t get_index() {
 				return m_index;
 			}
+			//Get the public key of the signing key.
 			std::string get_pubkey() {
 				return m_pubkey;
 			}
+			//Get the value of the salt string for this signing key.
 			std::string get_pubkey_salt() {
 				return m_salt;
 			}
@@ -486,6 +553,24 @@ namespace spqsigs {
 			std::vector<bool> m_mt_bits;
 			std::vector<std::string> m_merkle_tree_header;
 			std::vector<std::vector<std::string>> m_signature_body;
+		};
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char ... Args>
+                struct multitree_signature {
+			multitree_signature(std::string sigstring) {
+			    std::string v = sigstring;
+			}
+                        bool validate(std::string message) {
+                            return (message == "hohoho");
+			}
+			std::vector<uint32_t> get_index() {
+                            return std::vector<uint32_t>();
+			}
+			std::vector<std::string> get_pubkey() {
+                            return std::vector<std::string>();
+			}
+			std::vector<std::string> get_pubkey_salt() {
+                            return std::vector<std::string>();
+			}
 		};
 }
 #endif
