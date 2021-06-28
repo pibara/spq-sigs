@@ -390,14 +390,14 @@ namespace spqsigs {
 			};
 			//Signing key instantiation constraints.
 			//Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
-			static_assert(hashlen > 2);
-			static_assert(hashlen < 65);
+			static_assert(hashlen > 2, "Hash size should be at least 24 bits (3 bytes). For non-demo usage 128 bit (16 bytes) is suggested.");
+			static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
 			//The number of bits used for wots encoding must be 3 upto 16 bits. 
-			static_assert(wotsbits < 17);
-			static_assert(wotsbits > 2);
+			static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16)are not supported");
+			static_assert(wotsbits > 2, "A wots chain should be at least 4 hash operations long (botsbits > 1)");
 			//The height of a singe merkle-tree must be 3 up to 16 levels.
-			static_assert(merkleheight < 17);
-			static_assert(merkleheight > 2);
+			static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+			static_assert(merkleheight > 2, "A single merkle tree should ve at least two levels high. A value between 8 and 10 is recomended");
 			signing_key(): m_next_index(0),
 			    m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
 			    m_hashfunction(non_api::GENERATE()),
@@ -451,17 +451,56 @@ namespace spqsigs {
 			merkle_tree m_merkle_tree;
 		};
 
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char ... Args>
-                struct multitree_signing_key {
-                    multitree_signing_key() {}
+        //FIXME: We should try to replace the below with a variadic alternative.
+
+	// A multi tree signing key consisting of two levels.
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
+                struct two_tree_signing_key {
+                    two_tree_signing_key(): m_root_key(), m_signing_key() {}
                     std::string sign_message(std::string &message){
 		        return "bogus";
 		    }
 		    std::string get_state() {
 		        return "bogus";
 		    }
-		    virtual ~multitree_signing_key(){}
+		    virtual ~two_tree_signing_key(){}
+		  private:
+                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
+		    signing_key<hashlen, wotsbits, merkleheight2> m_signing_key;
 		};
+
+	// A multi tree signing key consisting of three levels
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3>
+                struct three_tree_signing_key {
+                    three_tree_signing_key(): m_root_key(), m_signing_key() {}
+                    std::string sign_message(std::string &message){
+                        return "bogus";
+                    }
+                    std::string get_state() {
+                        return "bogus";
+                    }
+                    virtual ~three_tree_signing_key(){}
+                  private:
+                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
+		    two_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3> m_signing_key;
+                };
+
+	// A mulkti tree signing key consisting of four levels.
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3, unsigned char merkleheight4>
+                struct four_tree_signing_key {
+                    four_tree_signing_key(): m_root_key(), m_signing_key() {}
+                    std::string sign_message(std::string &message){
+                        return "bogus";
+                    }
+                    std::string get_state() {
+                        return "bogus";
+                    }
+                    virtual ~four_tree_signing_key(){}
+                  private:
+                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
+                    three_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3, merkleheight4> m_signing_key;
+                };
+
 
 	//Public-API signature
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
@@ -469,14 +508,14 @@ namespace spqsigs {
 			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_mt_bits() ,m_merkle_tree_header(), m_signature_body() {
 				//Signature instantiation constraints.
                                 //Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
-                                static_assert(hashlen > 2);
-                                static_assert(hashlen < 65);
+                                static_assert(hashlen > 2, "Hash size should be at least 24 bits (3 bytes). For non-demo usage 128 bit (16 bytes) is suggested.");
+                                static_assert(hashlen < 65, "Hash size of more then 512 bits is not supported");
                                 //The number of bits used for wots encoding must be 3 upto 16 bits.
-                                static_assert(wotsbits < 17);
-                                static_assert(wotsbits > 2);
+                                static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16)are not supported");
+                                static_assert(wotsbits > 2, "A wots chain should be at least 4 hash operations long (botsbits > 1)");
                                 //The height of a singe merkle-tree must be 3 up to 16 levels.
-                                static_assert(merkleheight < 17);
-                                static_assert(merkleheight > 2);
+                                static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+                                static_assert(merkleheight > 2, "A single merkle tree should ve at least two levels high. A value between 8 and 10 is recomended");
 				constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 				// * check signature length
@@ -554,9 +593,10 @@ namespace spqsigs {
 			std::vector<std::string> m_merkle_tree_header;
 			std::vector<std::vector<std::string>> m_signature_body;
 		};
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char ... Args>
-                struct multitree_signature {
-			multitree_signature(std::string sigstring) {
+
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2>
+                struct two_tree_signature {
+			two_tree_signature(std::string sigstring) {
 			    std::string v = sigstring;
 			}
                         bool validate(std::string message) {
@@ -571,6 +611,47 @@ namespace spqsigs {
 			std::vector<std::string> get_pubkey_salt() {
                             return std::vector<std::string>();
 			}
+			virtual ~two_tree_signature(){}
 		};
+
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2, unsigned char merkleheigh3>
+                struct three_tree_signature {
+                        three_tree_signature(std::string sigstring) {
+                            std::string v = sigstring;
+                        }
+                        bool validate(std::string message) {
+                            return (message == "hohoho");
+                        }
+                        std::vector<uint32_t> get_index() {
+                            return std::vector<uint32_t>();
+                        }
+                        std::vector<std::string> get_pubkey() {
+                            return std::vector<std::string>();
+                        }
+                        std::vector<std::string> get_pubkey_salt() {
+                            return std::vector<std::string>();
+                        }
+                        virtual ~three_tree_signature(){}
+                };
+
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2, unsigned char merkleheigh3, unsigned char merkleheigh4>
+                struct four_tree_signature {
+                        four_tree_signature(std::string sigstring) {
+                            std::string v = sigstring;
+                        }
+                        bool validate(std::string message) {
+                            return (message == "hohoho");
+                        }
+                        std::vector<uint32_t> get_index() {
+                            return std::vector<uint32_t>();
+                        }
+                        std::vector<std::string> get_pubkey() {
+                            return std::vector<std::string>();
+                        }
+                        std::vector<std::string> get_pubkey_salt() {
+                            return std::vector<std::string>();
+                        }
+                        virtual ~four_tree_signature(){}
+                };
 }
 #endif

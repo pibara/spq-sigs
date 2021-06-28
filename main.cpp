@@ -20,10 +20,10 @@ constexpr unsigned char wotsbits=12;
 constexpr unsigned char merkleheight=10;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
-typedef spqsigs::multitree_signing_key<hashlen, wotsbits, merkleheight, merkleheight> signing_key_2l;
-typedef spqsigs::multitree_signature<hashlen, wotsbits, merkleheight, merkleheight> verifyable_signature_2l;
-typedef spqsigs::multitree_signing_key<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> signing_key_3l;
-typedef spqsigs::multitree_signature<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> verifyable_signature_3l;
+typedef spqsigs::two_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight> signing_key_2l;
+typedef spqsigs::two_tree_signature<hashlen, wotsbits, merkleheight, merkleheight> verifyable_signature_2l;
+typedef spqsigs::three_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> signing_key_3l;
+typedef spqsigs::three_tree_signature<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> verifyable_signature_3l;
 
 int main() {
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
