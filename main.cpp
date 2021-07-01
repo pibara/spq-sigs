@@ -18,19 +18,29 @@ std::string as_hex(std::string binary) {
 constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
 constexpr unsigned char merkleheight=10;
+constexpr unsigned char merkleheight2=7;
+constexpr unsigned char merkleheight3=7;
+constexpr unsigned char merkleheight4=10;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
-typedef spqsigs::two_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight> signing_key_2l;
-typedef spqsigs::two_tree_signature<hashlen, wotsbits, merkleheight, merkleheight> verifyable_signature_2l;
-typedef spqsigs::three_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> signing_key_3l;
-typedef spqsigs::three_tree_signature<hashlen, wotsbits, merkleheight, merkleheight, merkleheight> verifyable_signature_3l;
+typedef spqsigs::two_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> signing_key_2l;
+typedef spqsigs::two_tree_signature<hashlen, wotsbits, merkleheight, merkleheight2> verifyable_signature_2l;
+typedef spqsigs::three_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight2, merkleheight3> signing_key_3l;
+typedef spqsigs::three_tree_signature<hashlen, wotsbits, merkleheight, merkleheight2, merkleheight3> verifyable_signature_3l;
+typedef spqsigs::four_tree_signing_key<hashlen, wotsbits, merkleheight, merkleheight2, merkleheight3, merkleheight4> signing_key_4l;
+typedef spqsigs::four_tree_signature<hashlen, wotsbits, merkleheight, merkleheight2, merkleheight3, merkleheight4> verifyable_signature_4l;
+
 
 int main() {
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
-    std::cout << " - key meant to sign " <<  (1 << merkleheight) << " messages" << std::endl;
-    auto skey2l = signing_key_2l();
-    auto skey3l = signing_key_3l();
+    std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
     auto skey = signing_key();
+    std::cout << " - key meant to sign " <<  (1ull << (merkleheight + merkleheight2)) << " messages" << std::endl;
+    auto skey2l = signing_key_2l();
+    std::cout << " - key meant to sign " <<  (1ull << (merkleheight + merkleheight2 + merkleheight3)) << " messages" << std::endl;
+    auto skey3l = signing_key_3l();
+    std::cout << " - key meant to sign " <<  (1ull << (merkleheight + merkleheight2 + merkleheight3 + merkleheight4)) << " messages" << std::endl;
+    auto skey4l = signing_key_4l();
     std::cout << "Signing key generated, running signing test." << std::endl;
     std::string msg("This is just a test.");
     int ok_count = 0;
@@ -46,6 +56,7 @@ int main() {
             auto sign = verifyable_signature(signature);
 	    auto sign2 = verifyable_signature_2l(signature);
 	    auto sign3 = verifyable_signature_3l(signature);
+	    auto sign4 = verifyable_signature_4l(signature);
             std::cout << "validating" << std::endl;
             if (sign.validate(msg)) {
                 ok_count += 1;

@@ -121,7 +121,7 @@ namespace spqsigs {
 					return std::string(output, hashlen);
 				};
 				//Hash the input with the salt and return the digest.
-				std::string operator()(std::string &input){
+				std::string operator()(std::string &input) {
 					unsigned char output[hashlen];
 					crypto_generichash_blake2b(output,
 							hashlen,
@@ -132,7 +132,7 @@ namespace spqsigs {
 					return std::string(reinterpret_cast<const char *>(output), hashlen);
 				};
 				//Hash the input with the salt 'times' times. This is used for wots chains.
-				std::string operator()(std::string &input, size_t times){
+				std::string operator()(std::string &input, size_t times) {
 					unsigned char output[hashlen];
 					std::memcpy(output, input.c_str(), hashlen);
 					crypto_generichash_blake2b_state state;
@@ -148,7 +148,7 @@ namespace spqsigs {
 					return rval;
 				};
 				//Hash two inputs with salts and return the digest.
-				std::string operator()(std::string &input, std::string &input2){
+				std::string operator()(std::string &input, std::string &input2) {
 					unsigned char output[hashlen];
 					crypto_generichash_blake2b_state state;
 					crypto_generichash_blake2b_init(&state,
@@ -167,7 +167,7 @@ namespace spqsigs {
 				//Convert the seed, together with the index of the full-message-signing-key, the sub-index 
 				// of the wotsbits chunk of bits to sign, and the bit indicating the left or right wots chain
 				// for these indices, into the secret key for signing wotsbits bits with.
-				std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, size_t side){
+				std::string seed_to_secret(std::string &seed, size_t index, size_t subindex, size_t side) {
 					unsigned char unsalted[hashlen];
 					unsigned char output[hashlen];
 					std::string sidec = (side) ? "R" : "L";
@@ -239,7 +239,7 @@ namespace spqsigs {
 					};
 					// We use the index operator for signing a chunk of 'wotsbits' bits
 					// encoded into an unsigned integer.
-					std::string operator [](uint32_t index) {
+					std::string operator [](uint32_t index){
 						return m_hashprimative(m_private[0], index) + m_hashprimative(m_private[1], (1<<wotsbits) - index -1);
 					}
 					private:
@@ -261,7 +261,7 @@ namespace spqsigs {
 					return rval;
 				};
 				//Note: the square bracket operator is used for signing a digest.
-				std::string operator [](std::string digest)  {
+				std::string operator [](std::string &digest)  {
 					//Convert the digest to a list of numbers that we shall sign with the sub keys for this private key.
 					auto numlist = digest_to_numlist<hashlen, wotsbits>(digest);
 					std::string rval;
@@ -411,7 +411,7 @@ namespace spqsigs {
 				throw std::runtime_error("not yet implemented");
 			};
 			//Sign a hashlength bytes long digest.
-			std::string sign_digest(std::string &digest) {
+			std::string sign_digest(std::string digest) {
 				assert(digest.length() == hashlen);
 				//Throw an exception when key is already fully exhausted
 				if (this->m_next_index >= (1 << merkleheight)) {
@@ -441,6 +441,9 @@ namespace spqsigs {
 				// FIXME: implement serialize
 				throw std::runtime_error("not yet implemented");
 			}
+			std::string pubkey() {
+                            return m_merkle_tree.pubkey();
+			}
 			//Virtual destructor
 			virtual ~signing_key(){}
 			private:
@@ -456,41 +459,78 @@ namespace spqsigs {
 	// A multi tree signing key consisting of two levels.
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
                 struct two_tree_signing_key {
-                    two_tree_signing_key(): m_root_key(), m_signing_key() {}
-                    std::string sign_message(std::string &message){
-		        return "bogus";
+                    two_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
+		    std::vector<std::string> sign_message(std::string &message){
+			std::vector<std::string> rval;
+			try {
+			    rval.push_back(m_signing_key.sign_message(message));
+			} catch  (const spqsigs::signingkey_exhausted&) {
+                            m_signing_key = signing_key<hashlen, wotsbits, merkleheight2>();
+			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+			    rval.push_back(m_signing_key.sign_message(message));
+			}
+			rval.push_back(m_signing_key_signature);
+			return rval;
 		    }
 		    std::string get_state() {
 		        return "bogus";
 		    }
+		    std::string pubkey() {
+                        return m_root_key.pubkey();
+                    }
 		    virtual ~two_tree_signing_key(){}
 		  private:
                     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
 		    signing_key<hashlen, wotsbits, merkleheight2> m_signing_key;
+		    std::string m_signing_key_signature;
 		};
 
 	// A multi tree signing key consisting of three levels
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3>
                 struct three_tree_signing_key {
-                    three_tree_signing_key(): m_root_key(), m_signing_key() {}
-                    std::string sign_message(std::string &message){
-                        return "bogus";
+                    three_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
+		    std::vector<std::string> sign_message(std::string &message){
+                        try { 
+			    std::vector<std::string> rval = m_signing_key.sign_message(message);
+			    rval.push_back(m_signing_key_signature);
+			    return rval;
+			} catch  (const spqsigs::signingkey_exhausted&) {
+                            m_signing_key = two_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3>();
+                            m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+			    std::vector<std::string> rval = m_signing_key.sign_message(message);
+			    rval.push_back(m_signing_key_signature);
+			    return rval;
+			}
                     }
                     std::string get_state() {
                         return "bogus";
+                    }
+		    std::string pubkey() {
+                        return m_root_key.pubkey();
                     }
                     virtual ~three_tree_signing_key(){}
                   private:
                     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
 		    two_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3> m_signing_key;
+		    std::string m_signing_key_signature;
                 };
 
 	// A mulkti tree signing key consisting of four levels.
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3, unsigned char merkleheight4>
                 struct four_tree_signing_key {
-                    four_tree_signing_key(): m_root_key(), m_signing_key() {}
-                    std::string sign_message(std::string &message){
-                        return "bogus";
+                    four_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
+		    std::vector<std::string> sign_message(std::string &message){
+                        try {
+                            std::vector<std::string> rval = m_signing_key.sign_message(message);
+                            rval.push_back(m_signing_key_signature);
+                            return rval;
+			} catch  (const spqsigs::signingkey_exhausted&) {
+                            m_signing_key = three_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3, merkleheight4>();
+			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+			    std::vector<std::string> rval = m_signing_key.sign_message(message);
+			    rval.push_back(m_signing_key_signature);
+                            return rval;
+			}
                     }
                     std::string get_state() {
                         return "bogus";
@@ -499,6 +539,7 @@ namespace spqsigs {
                   private:
                     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
                     three_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3, merkleheight4> m_signing_key;
+		    std::string m_signing_key_signature;
                 };
 
 
