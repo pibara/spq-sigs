@@ -9,6 +9,7 @@
 #include <map>
 #include <stdexcept>
 #include <algorithm>
+#include <string_view>
 #include <exception>
 #include <iomanip>
 #include <sodium.h>
@@ -190,6 +191,9 @@ namespace spqsigs {
 				std::string get_salt() {
 					return m_salt;
 				}
+				void refresh() {
+                                    m_salt = make_seed();
+				}
 				friend signing_key<hashlen, wotsbits, merkleheight>;
 				friend signature<hashlen, wotsbits, merkleheight>;
 				private:
@@ -297,6 +301,13 @@ namespace spqsigs {
 				private_key<hashlen, (hashlen*8 + wotsbits -1)/wotsbits ,wotsbits, merkleheight, pubkey_size> &operator [](uint32_t index)  {
 					return this->m_keys[index];
 				};
+				void refresh(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed) {
+                                    m_keys.clear();
+                                    for (size_t index=0; index < pubkey_size; index++) {
+                                            m_keys.push_back(
+                                                            private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
+                                    }
+				}
 				//Only signing_key should invoke the constructor for private_keys
 				friend signing_key<hashlen, wotsbits, merkleheight>;
 				private:
@@ -328,6 +339,11 @@ namespace spqsigs {
 				};
 				//Virtual destructor
 				virtual ~merkle_tree(){};
+
+				void refresh() {
+                                    m_merkle_tree.clear();
+                                    this->populate<merkleheight>(0, "");
+				}
 				//Get the merkle-root, what is the same as the signing_key public key.
 				std::string pubkey() {
 					//Populate the tree if it hasn't already been.
@@ -406,6 +422,13 @@ namespace spqsigs {
 				    //Get pubkey as a way to populate.
 				    this->m_merkle_tree.pubkey();
 			};
+			//Make a new key when current one is exhausted
+			void refresh() {
+                            m_seed = non_api::primative<hashlen, wotsbits, merkleheight>::make_seed();
+			    m_hashfunction.refresh();
+			    m_privkeys.refresh(m_hashfunction, m_seed);
+			    m_merkle_tree.refresh();
+			}
 			//Future API for restoring a signing key from serialization.
 			signing_key(std::string serialized) {
 				throw std::runtime_error("not yet implemented");
@@ -465,7 +488,7 @@ namespace spqsigs {
 			try {
 			    rval.push_back(m_signing_key.sign_message(message));
 			} catch  (const spqsigs::signingkey_exhausted&) {
-                            m_signing_key = signing_key<hashlen, wotsbits, merkleheight2>();
+                            m_signing_key.refresh();
 			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
 			    rval.push_back(m_signing_key.sign_message(message));
 			}
