@@ -43,7 +43,7 @@ int main() {
     int except_count = 0;
     for (int ind=0; ind < (1 << merkleheight); ind++) {
 	try {
-            std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << std::endl;
+            std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << " ";
             std::string signature = skey.sign_message(msg);
             // std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
 	    // std::cout << "signature: " << as_hex(signature) << std::endl;
@@ -51,7 +51,9 @@ int main() {
             auto sign = verifyable_signature(signature);
             if (sign.validate(msg)) {
                 ok_count += 1;
+		std::cout << "VALIDATED" << std::endl;
 	    } else {
+		std::cout << "ERROR" << std::endl;
                 fail_count += 1;
 	    }
 	} catch  (const spqsigs::signingkey_exhausted&) {
