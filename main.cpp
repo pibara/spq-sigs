@@ -43,7 +43,7 @@ int main() {
     int except_count = 0;
     for (int ind=0; ind < (1 << merkleheight); ind++) {
 	try {
-            std::cout << std::endl << "Making signature " << ind << " out of " << (1 << merkleheight) << std::endl;
+            std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << std::endl;
             std::string signature = skey.sign_message(msg);
             // std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
 	    // std::cout << "signature: " << as_hex(signature) << std::endl;
@@ -64,17 +64,20 @@ int main() {
     } catch (const spqsigs::signingkey_exhausted&) {
         std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
     }
+    std::cout << "##### THE BELOW PART IS NOT YET WORKING! #########" << std::endl;
     ok_count = 0;
     fail_count = 0;
     except_count = 0;
+    std::cout << "Creating a new double-tree signing key. This may take a while." << std::endl;
     std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2)) << " messages" << std::endl;
     auto skey2l = signing_key_2l();
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2)); ind++) {
         try {
-	    std::cout << std::endl << "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << std::endl;
+	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << std::endl;
             auto signature = skey2l.sign_message(msg);
             //auto sign2 = verifyable_signature_2l(signature);
         } catch  (const spqsigs::signingkey_exhausted&) {
+	    std::cout << "OOPS" << std::endl;
             except_count += 1;
 	}
     }

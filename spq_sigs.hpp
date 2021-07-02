@@ -488,6 +488,7 @@ namespace spqsigs {
 			try {
 			    rval.push_back(m_signing_key.sign_message(message));
 			} catch  (const spqsigs::signingkey_exhausted&) {
+			    std::cout << "exausted" << std::endl;
                             m_signing_key.refresh();
 			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
 			    rval.push_back(m_signing_key.sign_message(message));
