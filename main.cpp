@@ -18,10 +18,10 @@ std::string as_hex(std::string binary) {
 constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
 constexpr unsigned char merkleheight=10;
-constexpr unsigned char merkleheight1=7;
-constexpr unsigned char merkleheight2=7;
-constexpr unsigned char merkleheight3=7;
-constexpr unsigned char merkleheight4=7;
+constexpr unsigned char merkleheight1=4;
+constexpr unsigned char merkleheight2=4;
+constexpr unsigned char merkleheight3=4;
+constexpr unsigned char merkleheight4=4;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
 typedef spqsigs::two_tree_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2> signing_key_2l;
@@ -83,5 +83,39 @@ int main() {
             except_count += 1;
 	}
     }
-    std::cout << std::endl << "OK:" << ok_count << " FAIL:" << fail_count << " EXCEPT:" << except_count  << std::endl;
+    std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
+    ok_count = 0;
+    fail_count = 0;
+    except_count = 0;
+    std::cout << "Creating a new triple-tree signing key. This may take a while." << std::endl;
+    std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2 + merkleheight3)) << " messages" << std::endl;
+    auto skey3l = signing_key_3l();
+    for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 +merkleheight3)); ind++) {
+        try {
+            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << std::endl;
+            auto signature = skey3l.sign_message(msg);
+            //auto sign2 = verifyable_signature_2l(signature);
+        } catch  (const spqsigs::signingkey_exhausted&) {
+            std::cout << "OOPS" << std::endl;
+            except_count += 1;
+        }
+    }
+    std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
+    ok_count = 0;
+    fail_count = 0;
+    except_count = 0;
+    std::cout << "Creating a new quadrupal-tree signing key. This may take a while." << std::endl;
+    std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " messages" << std::endl;
+    auto skey4l = signing_key_4l();
+    for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
+        try {
+            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << std::endl;
+            auto signature = skey4l.sign_message(msg);
+            //auto sign2 = verifyable_signature_2l(signature);
+        } catch  (const spqsigs::signingkey_exhausted&) {
+            std::cout << "OOPS" << std::endl;
+            except_count += 1;
+        }
+    }
+    std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
 }

@@ -503,6 +503,11 @@ namespace spqsigs {
 		    std::string pubkey() {
                         return m_root_key.pubkey();
                     }
+		    void refresh() {
+                        m_root_key.refresh();
+                        m_signing_key.refresh();
+			m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+		    }
 		    virtual ~two_tree_signing_key(){}
 		  private:
                     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
@@ -520,7 +525,7 @@ namespace spqsigs {
 			    rval.push_back(m_signing_key_signature);
 			    return rval;
 			} catch  (const spqsigs::signingkey_exhausted&) {
-                            m_signing_key = two_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3>();
+			    m_signing_key.refresh();
                             m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
 			    std::vector<std::string> rval = m_signing_key.sign_message(message);
 			    rval.push_back(m_signing_key_signature);
@@ -532,6 +537,11 @@ namespace spqsigs {
                     }
 		    std::string pubkey() {
                         return m_root_key.pubkey();
+                    }
+		    void refresh() {
+                        m_root_key.refresh();
+                        m_signing_key.refresh();
+                        m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
                     }
                     virtual ~three_tree_signing_key(){}
                   private:
@@ -550,7 +560,7 @@ namespace spqsigs {
                             rval.push_back(m_signing_key_signature);
                             return rval;
 			} catch  (const spqsigs::signingkey_exhausted&) {
-                            m_signing_key = three_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3, merkleheight4>();
+			    m_signing_key.refresh();
 			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
 			    std::vector<std::string> rval = m_signing_key.sign_message(message);
 			    rval.push_back(m_signing_key_signature);
@@ -559,6 +569,11 @@ namespace spqsigs {
                     }
                     std::string get_state() {
                         return "bogus";
+                    }
+		    void refresh() {
+                        m_root_key.refresh();
+                        m_signing_key.refresh();
+                        m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
                     }
                     virtual ~four_tree_signing_key(){}
                   private:
