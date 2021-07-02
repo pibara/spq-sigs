@@ -33,14 +33,14 @@ typedef spqsigs::four_tree_signature<hashlen, wotsbits, merkleheight1, merklehei
 
 
 int main() {
-    std::cout << "Creating a new signing key. This may take a while." << std::endl;
-    std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
-    auto skey = signing_key();
     std::cout << "Signing key generated, running signing test." << std::endl;
     std::string msg("This is just a test.");
     int ok_count = 0;
     int fail_count = 0;
     int except_count = 0;
+    std::cout << "Creating a new signing key. This may take a while." << std::endl;
+    std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
+    auto skey = signing_key();
     for (int ind=0; ind < (1 << merkleheight); ind++) {
 	try {
             std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << " ";

@@ -302,7 +302,8 @@ namespace spqsigs {
 					return this->m_keys[index];
 				};
 				void refresh(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed) {
-                                    m_keys.clear();
+                                    std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkleheight, pubkey_size>>  empty;
+				    m_keys.swap(empty);
                                     for (size_t index=0; index < pubkey_size; index++) {
                                             m_keys.push_back(
                                                             private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
@@ -401,7 +402,7 @@ namespace spqsigs {
 				non_api::private_keys<hashlen,
 					merkleheight,
 					wotsbits,
-					static_cast<unsigned short>(1) << merkleheight > m_private_keys;
+					static_cast<unsigned short>(1) << merkleheight > &m_private_keys;
 				std::map<std::string, std::string> m_merkle_tree;
 			};
 			//Signing key instantiation constraints.
@@ -424,6 +425,7 @@ namespace spqsigs {
 			};
 			//Make a new key when current one is exhausted
 			void refresh() {
+			    m_next_index = 0;
                             m_seed = non_api::primative<hashlen, wotsbits, merkleheight>::make_seed();
 			    m_hashfunction.refresh();
 			    m_privkeys.refresh(m_hashfunction, m_seed);
@@ -488,7 +490,6 @@ namespace spqsigs {
 			try {
 			    rval.push_back(m_signing_key.sign_message(message));
 			} catch  (const spqsigs::signingkey_exhausted&) {
-			    std::cout << "exausted" << std::endl;
                             m_signing_key.refresh();
 			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
 			    rval.push_back(m_signing_key.sign_message(message));
