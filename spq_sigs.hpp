@@ -485,17 +485,18 @@ namespace spqsigs {
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
                 struct two_tree_signing_key {
                     two_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::vector<std::string> sign_message(std::string &message){
-			std::vector<std::string> rval;
+		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
+			std::string signature;
 			try {
-			    rval.push_back(m_signing_key.sign_message(message));
+			    signature = m_signing_key.sign_message(message);
 			} catch  (const spqsigs::signingkey_exhausted&) {
                             m_signing_key.refresh();
 			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-			    rval.push_back(m_signing_key.sign_message(message));
+			    signature = m_signing_key.sign_message(message);
 			}
-			rval.push_back(m_signing_key_signature);
-			return rval;
+		        std::vector<std::pair<std::string, std::string>> rval;
+			rval.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
+		        return std::make_pair(signature,rval);
 		    }
 		    std::string get_state() {
 		        return "bogus";
@@ -519,17 +520,17 @@ namespace spqsigs {
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3>
                 struct three_tree_signing_key {
                     three_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::vector<std::string> sign_message(std::string &message){
+		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
                         try { 
-			    std::vector<std::string> rval = m_signing_key.sign_message(message);
-			    rval.push_back(m_signing_key_signature);
+			    auto rval = m_signing_key.sign_message(message);
+			    rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
 			    return rval;
 			} catch  (const spqsigs::signingkey_exhausted&) {
 			    m_signing_key.refresh();
                             m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-			    std::vector<std::string> rval = m_signing_key.sign_message(message);
-			    rval.push_back(m_signing_key_signature);
-			    return rval;
+			    auto rval = m_signing_key.sign_message(message);
+                            rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
+                            return rval;
 			}
                     }
                     std::string get_state() {
@@ -554,16 +555,16 @@ namespace spqsigs {
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3, unsigned char merkleheight4>
                 struct four_tree_signing_key {
                     four_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::vector<std::string> sign_message(std::string &message){
-                        try {
-                            std::vector<std::string> rval = m_signing_key.sign_message(message);
-                            rval.push_back(m_signing_key_signature);
+		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>>  sign_message(std::string &message){
+			try {
+                            auto rval = m_signing_key.sign_message(message);
+                            rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                             return rval;
-			} catch  (const spqsigs::signingkey_exhausted&) {
-			    m_signing_key.refresh();
-			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-			    std::vector<std::string> rval = m_signing_key.sign_message(message);
-			    rval.push_back(m_signing_key_signature);
+                        } catch  (const spqsigs::signingkey_exhausted&) {
+                            m_signing_key.refresh();
+                            m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+                            auto rval = m_signing_key.sign_message(message);
+                            rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                             return rval;
 			}
                     }
