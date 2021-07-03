@@ -676,6 +676,8 @@ namespace spqsigs {
 			std::vector<std::vector<std::string>> m_signature_body;
 		};
 
+        //FIXME: The below is complete nonsense right now, implement
+
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2>
                 struct two_tree_signature {
 			two_tree_signature(std::string sigstring) {
