@@ -479,84 +479,12 @@ namespace spqsigs {
 			merkle_tree m_merkle_tree;
 		};
 
-        //FIXME: We should try to replace the below with a variadic alternative.
-
-	// A multi tree signing key consisting of two levels.
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
-                struct two_tree_signing_key {
-                    two_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
-			std::string signature;
-			try {
-			    signature = m_signing_key.sign_message(message);
-			} catch  (const spqsigs::signingkey_exhausted&) {
-                            m_signing_key.refresh();
-			    m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-			    signature = m_signing_key.sign_message(message);
-			}
-		        std::vector<std::pair<std::string, std::string>> rval;
-			rval.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
-		        return std::make_pair(signature,rval);
-		    }
-		    std::string get_state() {
-		        return "bogus";
-		    }
-		    std::string pubkey() {
-                        return m_root_key.pubkey();
-                    }
-		    void refresh() {
-                        m_root_key.refresh();
-                        m_signing_key.refresh();
-			m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-		    }
-		    virtual ~two_tree_signing_key(){}
-		  private:
-                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
-		    signing_key<hashlen, wotsbits, merkleheight2> m_signing_key;
-		    std::string m_signing_key_signature;
-		};
-
-	// A multi tree signing key consisting of three levels
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3>
-                struct three_tree_signing_key {
-                    three_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
-                        try { 
-			    auto rval = m_signing_key.sign_message(message);
-			    rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
-			    return rval;
-			} catch  (const spqsigs::signingkey_exhausted&) {
-			    m_signing_key.refresh();
-                            m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-			    auto rval = m_signing_key.sign_message(message);
-                            rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
-                            return rval;
-			}
-                    }
-                    std::string get_state() {
-                        return "bogus";
-                    }
-		    std::string pubkey() {
-                        return m_root_key.pubkey();
-                    }
-		    void refresh() {
-                        m_root_key.refresh();
-                        m_signing_key.refresh();
-                        m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-                    }
-                    virtual ~three_tree_signing_key(){}
-                  private:
-                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
-		    two_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3> m_signing_key;
-		    std::string m_signing_key_signature;
-                };
-
-	// A mulkti tree signing key consisting of four levels.
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char merkleheight3, unsigned char merkleheight4>
-                struct four_tree_signing_key {
-                    four_tree_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
-		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>>  sign_message(std::string &message){
-			try {
+        // The multi-tree variant of the signing key. First for three and more merkle trees.
+        template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char ...Args>
+		struct multi_signing_key {
+                    multi_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
+                    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
+                        try {
                             auto rval = m_signing_key.sign_message(message);
                             rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                             return rval;
@@ -566,23 +494,60 @@ namespace spqsigs {
                             auto rval = m_signing_key.sign_message(message);
                             rval.second.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                             return rval;
-			}
+                        }
                     }
                     std::string get_state() {
                         return "bogus";
                     }
-		    void refresh() {
+                    std::string pubkey() {
+                        return m_root_key.pubkey();
+                    }
+                    void refresh() {
                         m_root_key.refresh();
                         m_signing_key.refresh();
                         m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
                     }
-                    virtual ~four_tree_signing_key(){}
+                    virtual ~multi_signing_key(){}
                   private:
                     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
-                    three_tree_signing_key<hashlen, wotsbits, merkleheight2, merkleheight3, merkleheight4> m_signing_key;
-		    std::string m_signing_key_signature;
-                };
+                    multi_signing_key<hashlen, wotsbits, merkleheight2, Args...> m_signing_key;
+                    std::string m_signing_key_signature;
+		};
 
+        // The multi-tree variant of the signing key. This one is for two merkle trees to close of the stack.
+	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
+		struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
+                    multi_signing_key() : m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
+		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
+                        std::string signature;
+                        try {
+                            signature = m_signing_key.sign_message(message);
+                        } catch  (const spqsigs::signingkey_exhausted&) {
+                            m_signing_key.refresh();
+                            m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+                            signature = m_signing_key.sign_message(message);
+                        }
+                        std::vector<std::pair<std::string, std::string>> rval;
+                        rval.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
+                        return std::make_pair(signature,rval);
+                    }
+                    std::string get_state() {
+                        return "bogus";
+                    }
+                    std::string pubkey() {
+                        return m_root_key.pubkey();
+                    }
+                    void refresh() {
+                        m_root_key.refresh();
+                        m_signing_key.refresh();
+                        m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
+                    }
+                    virtual ~multi_signing_key(){}
+                  private:
+                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
+                    signing_key<hashlen, wotsbits, merkleheight2> m_signing_key;
+                    std::string m_signing_key_signature;
+		};
 
 	//Public-API signature
 	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
