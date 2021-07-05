@@ -645,8 +645,8 @@ namespace spqsigs {
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
                 struct multi_signature {
-                        multi_signature(std::string sigstring) {
-                            std::string v = sigstring;
+                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> signature) {
+                            std::string v = signature.first;
                         }
                         bool validate(std::string message) {
                             return (message == "hohoho");
@@ -665,8 +665,8 @@ namespace spqsigs {
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
                 struct multi_signature<hashlen, wotsbits, merkleheight, merkleheight2> {
-                        multi_signature(std::string sigstring) {
-                            std::string v = sigstring;
+                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> signature) {
+                            std::string v = signature.first;
                         }
                         bool validate(std::string message) {
                             return (message == "hohoho");
