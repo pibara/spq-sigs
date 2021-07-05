@@ -641,31 +641,31 @@ namespace spqsigs {
 			std::vector<std::vector<std::string>> m_signature_body;
 		};
 
-        //FIXME: The below is complete nonsense right now, implement
+        //FIXME: The below is complete nonsense right now, implement!
 
-	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2>
-                struct two_tree_signature {
-			two_tree_signature(std::string sigstring) {
-			    std::string v = sigstring;
-			}
+        template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
+                struct multi_signature {
+                        multi_signature(std::string sigstring) {
+                            std::string v = sigstring;
+                        }
                         bool validate(std::string message) {
                             return (message == "hohoho");
-			}
-			std::vector<uint32_t> get_index() {
+                        }
+                        std::vector<uint32_t> get_index() {
                             return std::vector<uint32_t>();
-			}
-			std::vector<std::string> get_pubkey() {
+                        }
+                        std::vector<std::string> get_pubkey() {
                             return std::vector<std::string>();
-			}
-			std::vector<std::string> get_pubkey_salt() {
+                        }
+                        std::vector<std::string> get_pubkey_salt() {
                             return std::vector<std::string>();
-			}
-			virtual ~two_tree_signature(){}
+                        }
+                        virtual ~multi_signature(){}
 		};
 
-	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2, uint8_t merkleheigh3>
-                struct three_tree_signature {
-                        three_tree_signature(std::string sigstring) {
+        template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
+                struct multi_signature<hashlen, wotsbits, merkleheight, merkleheight2> {
+                        multi_signature(std::string sigstring) {
                             std::string v = sigstring;
                         }
                         bool validate(std::string message) {
@@ -680,27 +680,7 @@ namespace spqsigs {
                         std::vector<std::string> get_pubkey_salt() {
                             return std::vector<std::string>();
                         }
-                        virtual ~three_tree_signature(){}
-                };
-
-	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2, uint8_t merkleheigh3, uint8_t merkleheigh4>
-                struct four_tree_signature {
-                        four_tree_signature(std::string sigstring) {
-                            std::string v = sigstring;
-                        }
-                        bool validate(std::string message) {
-                            return (message == "hohoho");
-                        }
-                        std::vector<uint32_t> get_index() {
-                            return std::vector<uint32_t>();
-                        }
-                        std::vector<std::string> get_pubkey() {
-                            return std::vector<std::string>();
-                        }
-                        std::vector<std::string> get_pubkey_salt() {
-                            return std::vector<std::string>();
-                        }
-                        virtual ~four_tree_signature(){}
-                };
+                        virtual ~multi_signature(){}
+		};
 }
 #endif

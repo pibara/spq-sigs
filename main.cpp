@@ -25,11 +25,11 @@ constexpr unsigned char merkleheight4=4;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
 typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2> signing_key_2l;
-typedef spqsigs::two_tree_signature<hashlen, wotsbits, merkleheight1, merkleheight2> verifyable_signature_2l;
+typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2> verifyable_signature_2l;
 typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> signing_key_3l;
-typedef spqsigs::three_tree_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> verifyable_signature_3l;
+typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> verifyable_signature_3l;
 typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> signing_key_4l;
-typedef spqsigs::four_tree_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> verifyable_signature_4l;
+typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> verifyable_signature_4l;
 
 
 int main() {
