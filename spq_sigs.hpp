@@ -28,9 +28,9 @@ namespace spqsigs {
             using std::exception::exception;
         };
 	// declaration for signing_key class template defined at bottom of this file. 
-	template<unsigned char hashlen=24, unsigned char wotsbits=12, unsigned char merkleheight=10>
+	template<uint8_t hashlen=24, uint8_t wotsbits=12, uint8_t merkleheight=10>
 		struct signing_key;
-        template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
+        template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
                 struct signature;
 
 	// Anything in the non_api sub namespace is not part of the public API of this single-file header-only library.
@@ -39,12 +39,12 @@ namespace spqsigs {
                 //generated salt.
                 class GENERATE {};
 		// declaration for private_keys class template 
-		template<unsigned char hashlen,  unsigned char merkleheight, unsigned char wotsbits, uint32_t pubkey_size>
+		template<uint8_t hashlen,  uint8_t merkleheight, uint8_t wotsbits, uint32_t pubkey_size>
 			struct private_keys;
 
 		// Helper function for converting a digest to a vector of numbers that can be signed using a
 		// different subkey each.
-		template<unsigned char hashlen, unsigned char wotsbits>
+		template<uint8_t hashlen, uint8_t wotsbits>
 			std::vector<uint32_t> digest_to_numlist(std::string &msg_digest) {
 				std::vector<uint32_t> rval;
 				//Calculate (compile-time) how many sub-keys are needed for signing hashlen bytes of data
@@ -96,11 +96,11 @@ namespace spqsigs {
 			}
 
 		//Helper function for turning a small number into a vector of booleans (bits).
-		template<unsigned char merkleheight>
+		template<uint8_t merkleheight>
 			std::vector<bool> as_bits(uint32_t signing_key_index) {
 				std::vector<bool> rval;
 				//Go from left (higher index value) to right (zero).
-				for (unsigned char index=merkleheight; index>0; index--) {
+				for (uint8_t index=merkleheight; index>0; index--) {
 					//Convert one bit into a boolean.
 					bool val = (((signing_key_index >> (index - 1)) & 1) == 1);
 					//Add boolena to return vector.
@@ -110,7 +110,7 @@ namespace spqsigs {
 			}
 
 		// Hashing primative for 'hashlen' long digests, with a little extra. The hashing primative runs using libsodium.
-		template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
+		template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 			struct primative {
 				// Virtual distructor
 				virtual ~primative(){}
@@ -206,7 +206,7 @@ namespace spqsigs {
 
 		//A private key is a collection of subkeys that together can create a one-time-signature for
 		// a single transaction/message digest.
-		template<unsigned char hashlen, int subkey_count, unsigned char wotsbits, unsigned char merkleheight, uint32_t pubkey_size>
+		template<uint8_t hashlen, int subkey_count, uint8_t wotsbits, uint8_t merkleheight, uint32_t pubkey_size>
 			struct private_key {
 				// A tiny chunk of a one-time (wots) signing key, able to sign a chunk of 'wotsbits' bits with.
 				struct subkey {
@@ -292,7 +292,7 @@ namespace spqsigs {
 			};
 
 		// Collection of all one-time signing keys belonging with a signing key
-		template<unsigned char hashlen,  unsigned char merkleheight, unsigned char wotsbits, uint32_t pubkey_size>
+		template<uint8_t hashlen,  uint8_t merkleheight, uint8_t wotsbits, uint32_t pubkey_size>
 			struct private_keys {
 				static constexpr uint32_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
 				// Virtual destructor
@@ -324,7 +324,7 @@ namespace spqsigs {
 			};
 	}
 	// Public API signing_key
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 		struct signing_key {
 			// The merkle-tree that maps a larger collection of single use private/public keys, to a single merkle-root public key.
 			// Also used in encoding signatures. 
@@ -366,10 +366,10 @@ namespace spqsigs {
 					std::vector<bool> index_bits = non_api::as_bits<merkleheight>(signing_key_index);
 					std::string rval;
                                         // For each depth in the tree extract one node.
-					for (unsigned char bindex=0; bindex < merkleheight; bindex++) {
+					for (uint8_t bindex=0; bindex < merkleheight; bindex++) {
 						std::string key;
 						//For each bit of a given depth, except the last, pick use the input designation
-						for (unsigned char index=0; index<bindex; index++) {
+						for (uint8_t index=0; index<bindex; index++) {
 							key += index_bits[index] ? std::string("1") : std::string("0");
 						}
 						//For the last bit, get the oposing node.
@@ -381,7 +381,7 @@ namespace spqsigs {
 				private:
 				//Populate the merkle tree by populating the public keys for all the private keys of the signing key.
 				//Populating is initiated at merkleheight height, and works its way down.
-				template<unsigned char remaining_height>
+				template<uint8_t remaining_height>
 					std::string populate(uint32_t start, std::string prefix) {
 						if constexpr (remaining_height != 0) {
 							//Polulate the left branch and get the top node hash
@@ -480,7 +480,7 @@ namespace spqsigs {
 		};
 
         // The multi-tree variant of the signing key. First for three and more merkle trees.
-        template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2, unsigned char ...Args>
+        template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 		struct multi_signing_key {
                     multi_signing_key(): m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
                     std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
@@ -515,7 +515,7 @@ namespace spqsigs {
 		};
 
         // The multi-tree variant of the signing key. This one is for two merkle trees to close of the stack.
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight, unsigned char merkleheight2>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
 		struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
                     multi_signing_key() : m_root_key(), m_signing_key(), m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())) {}
 		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
@@ -550,7 +550,7 @@ namespace spqsigs {
 		};
 
 	//Public-API signature
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheight>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 		struct signature {
 			signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_mt_bits() ,m_merkle_tree_header(), m_signature_body() {
 				//Signature instantiation constraints.
@@ -643,7 +643,7 @@ namespace spqsigs {
 
         //FIXME: The below is complete nonsense right now, implement
 
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2>
                 struct two_tree_signature {
 			two_tree_signature(std::string sigstring) {
 			    std::string v = sigstring;
@@ -663,7 +663,7 @@ namespace spqsigs {
 			virtual ~two_tree_signature(){}
 		};
 
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2, unsigned char merkleheigh3>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2, uint8_t merkleheigh3>
                 struct three_tree_signature {
                         three_tree_signature(std::string sigstring) {
                             std::string v = sigstring;
@@ -683,7 +683,7 @@ namespace spqsigs {
                         virtual ~three_tree_signature(){}
                 };
 
-	template<unsigned char hashlen, unsigned char wotsbits, unsigned char merkleheigh, unsigned char merkleheigh2, unsigned char merkleheigh3, unsigned char merkleheigh4>
+	template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheigh, uint8_t merkleheigh2, uint8_t merkleheigh3, uint8_t merkleheigh4>
                 struct four_tree_signature {
                         four_tree_signature(std::string sigstring) {
                             std::string v = sigstring;
