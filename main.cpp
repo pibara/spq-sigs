@@ -73,11 +73,21 @@ int main() {
     std::cout << "Creating a new double-tree signing key. This may take a while." << std::endl;
     std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2)) << " messages" << std::endl;
     auto skey2l = signing_key_2l();
+    std::vector<std::string> cached;
+    cached.push_back("");
+    cached.push_back(skey2l.pubkey());
+
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2)); ind++) {
         try {
-	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << std::endl;
+	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << " ";
             auto signature = skey2l.sign_message(msg);
-            //auto sign2 = verifyable_signature_2l(signature);
+            auto sign2 = verifyable_signature_2l(signature, cached);
+	    if (sign2.validate(msg)) {
+                 std::cout << "OK" << std::endl;
+	    } else {
+                 std::cout << "FAIL, WE HAVE WORK TO DO HERE" << std::endl;
+	    }
+
         } catch  (const spqsigs::signingkey_exhausted&) {
 	    std::cout << "OOPS" << std::endl;
             except_count += 1;

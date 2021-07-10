@@ -649,7 +649,7 @@ namespace spqsigs {
 			std::vector<std::vector<std::string>> m_signature_body;
 		};
 
-        //FIXME: The below is complete nonsense right now, implement!
+        //FIXME: The below code seems to be very broken right now. Don't use multi tree signatures yet!
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
                 struct multi_signature {
@@ -669,13 +669,13 @@ namespace spqsigs {
 				    if (found != expected) {
 					m_cached = false;
 				        signature<hashlen, wotsbits, merkleheight2> pubkey_signature(sig.second[my_index].second);
-                                        m_level_ok = pubkey_signature(found);
+                                        m_level_ok = pubkey_signature.validate(found);
 					if (m_level_ok) {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
                                                 m_level_ok = false;
 					    } else {
                                                 m_pubkey = pubkey_signature.get_pubkey();
-						m_salt = pubkey_signature.get_salt();
+						m_salt = pubkey_signature.get_pubkey_salt();
 					    }
 				        }
 				    }
@@ -735,19 +735,30 @@ namespace spqsigs {
                                         m_cached = false;
 					std::string signature_string(sig.second[my_index].second);
 					signature<hashlen, wotsbits, merkleheight> pubkey_signature(signature_string);
-                                        m_level_ok = pubkey_signature(found);
+                                        m_level_ok = pubkey_signature.validate(found);
                                         if (m_level_ok) {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
                                                 m_level_ok = false;
+						std::cout << " OOPS1 ";
                                             } else {
                                                 m_pubkey = pubkey_signature.get_pubkey();
-                                                m_salt = pubkey_signature.get_salt();
+                                                m_salt = pubkey_signature.get_pubkey_salt();
                                             }
-                                        }
+                                        } else {
+                                            std::cout << " OOPS2 "; // FIXME: Currently the two tree walkthrough ends up here while it shouldn't
+					}
                                     }
 				}
                         bool validate(std::string message) {
-			    return  m_level_ok  and m_message_signature(message);
+			    bool rval = false;
+			    if (m_level_ok) {
+                                if (m_message_signature.validate(message)) {
+                                    rval = true;
+				} else {
+                                    std::cout << " OOPS3 ";
+				}
+			    }
+			    return  rval;
                         }
                         std::vector<uint32_t> get_index() {
                             std::vector<uint32_t>  rval;
