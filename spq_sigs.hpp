@@ -653,77 +653,136 @@ namespace spqsigs {
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
                 struct multi_signature {
-                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> signature):
-			    m_pubkey_sig_pair(/*signature.second.pop_back()*/), //FIXME, we need to somehow do a pop_back here but the compiler doesn't like it.
-		            m_signing_key_signature(m_pubkey_sig_pair.second),
-		            m_deeper_signature(signature){}
+                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, uint8_t treedepth=0):
+				m_level_ok(true),
+				m_cached(true),
+				m_signature(sig),
+				m_index(0),
+				m_last_known(last_known),
+				m_treedepth(treedepth),
+				m_deeper_signature(sig, treedepth+1),
+			        m_pubkey(), m_salt() {
+				    auto tree_count = treedepth +  sizeof...(Args) + 2;
+				    auto my_index = tree_count - treedepth - 2;
+				    auto expected = last_known[my_index];
+				    auto found = sig.second[my_index].first;
+				    if (found != expected) {
+					m_cached = false;
+				        signature<hashlen, wotsbits, merkleheight2> pubkey_signature(sig.second[my_index].second);
+                                        m_level_ok = pubkey_signature(found);
+					if (m_level_ok) {
+                                            if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
+                                                m_level_ok = false;
+					    } else {
+                                                m_pubkey = pubkey_signature.get_pubkey();
+						m_salt = pubkey_signature.get_salt();
+					    }
+				        }
+				    }
+				}
                         bool validate(std::string message) {
-                            return m_deeper_signature.validate(message) and
-				   m_signing_key_signature.validate(m_pubkey_sig_pair.first) and
-				   m_pubkey_sig_pair.first = m_deeper_signature.get_pubkey_short();
+			    return m_level_ok  and m_deeper_signature.validate(message);
                         }
                         std::vector<uint32_t> get_index() {
 			    std::vector<uint32_t> rval = m_deeper_signature.get_index();
-                            rval.insert(rval.begin(), m_signing_key_signature.get_index());
+			    if (m_cached == false) {
+                                rval.insert(rval.begin(), m_index);
+			    }
                             return rval;
                         }
                         std::vector<std::string> get_pubkey() {
                             std::vector<std::string> rval = m_deeper_signature.get_pubkey();
-                            rval.insert(rval.begin(), m_signing_key_signature.get_pubkey());
+			    if (m_cached == false) {
+                                rval.insert(rval.begin(), m_pubkey);
+			    }
                             return rval;
                         }
                         std::vector<std::string> get_pubkey_salt() {
                             std::vector<std::string> rval = m_deeper_signature.get_pubkey_salt();
-                            rval.insert(rval.begin(), m_signing_key_signature.get_pubkey_salt());
+			    if (m_cached == false) {
+                                rval.insert(rval.begin(), m_salt);
+			    }
                             return rval;
                         }
-			std::string get_pubkey_short() {
-                            return m_signing_key_signature.get_pubkey();
-			}
                         virtual ~multi_signature(){}
 		    private:
-			std::pair<std::string, std::string> m_pubkey_sig_pair;
-			signature<hashlen, wotsbits, merkleheight> m_signing_key_signature;
+			bool m_level_ok;
+			bool m_cached;
+			std::pair<std::string, std::vector<std::pair<std::string, std::string>>> m_signature;
+			uint16_t m_index;
+			std::vector<std::string> &m_last_known;
+			uint8_t m_treedepth;
                         multi_signature<hashlen, wotsbits, merkleheight2, Args...> m_deeper_signature;
+			std::string m_pubkey;
+			std::string m_salt;
 		};
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
                 struct multi_signature<hashlen, wotsbits, merkleheight, merkleheight2> {
-                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> signature):
-				m_message_signature(signature.first),
-		                m_signing_key_signature(signature.second[0].second),
-			        m_signing_key_pubkey(signature.second[0].first){}
+			multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, uint8_t treedepth=0):
+				m_level_ok(true),
+                                m_cached(true),
+				m_message_signature(sig.first),
+		                m_index(0),
+                                m_last_known(last_known),
+                                m_treedepth(treedepth),
+                                m_pubkey(), m_salt()	{
+                                    auto tree_count = treedepth  + 2;
+                                    auto my_index = tree_count - treedepth - 2;
+                                    auto expected = last_known[my_index];
+                                    auto found = sig.second[my_index].first;
+                                    if (found != expected) {
+                                        m_cached = false;
+					std::string signature_string(sig.second[my_index].second);
+					signature<hashlen, wotsbits, merkleheight> pubkey_signature(signature_string);
+                                        m_level_ok = pubkey_signature(found);
+                                        if (m_level_ok) {
+                                            if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
+                                                m_level_ok = false;
+                                            } else {
+                                                m_pubkey = pubkey_signature.get_pubkey();
+                                                m_salt = pubkey_signature.get_salt();
+                                            }
+                                        }
+                                    }
+				}
                         bool validate(std::string message) {
-                            return m_message_signature.validate(message) and
-				    m_signing_key_signature.validate(m_signing_key_pubkey) and
-				    m_signing_key_pubkey == m_message_signature.get_pubkey_short();
+			    return  m_level_ok  and m_message_signature(message);
                         }
                         std::vector<uint32_t> get_index() {
                             std::vector<uint32_t>  rval;
-			    rval.push_back(m_signing_key_signature.get_index());
 			    rval.push_back(m_message_signature.get_index());
+			    if (m_cached == false) {
+			        rval.push_back(m_index);
+			    }
                             return rval;
                         }
                         std::vector<std::string> get_pubkey() {
                             std::vector<std::string> rval;
-			    rval.push_back(m_signing_key_signature.get_pubkey());
 			    rval.push_back(m_message_signature.get_pubkey());
+			    if (m_cached == false) {
+			        rval.push_back(m_pubkey);
+			    }
 			    return rval;
                         }
                         std::vector<std::string> get_pubkey_salt() {
                             std::vector<std::string> rval;
-			    rval.push_back(m_signing_key_signature.get_pubkey_salt());
-                            rval.push_back(m_message_signature.get_pubkey_salt());
+			    rval.push_back(m_message_signature.get_pubkey_salt());
+			    if (m_cached == false) {
+                                rval.push_back(m_salt);
+			    }
                             return rval;
-                        }
-			std::string get_pubkey_short() {
-                            return m_signing_key_signature.get_pubkey();
                         }
                         virtual ~multi_signature(){}
 		    private:
+			bool m_level_ok;
+                        bool m_cached;
                         signature<hashlen, wotsbits, merkleheight2> m_message_signature;
-			signature<hashlen, wotsbits, merkleheight> m_signing_key_signature;
-			std::string m_signing_key_pubkey;
+			uint16_t m_index;
+			std::vector<std::string> &m_last_known;
+                        uint8_t m_treedepth;
+                        std::string m_pubkey;
+                        std::string m_salt;
 		};
 }
 #endif
