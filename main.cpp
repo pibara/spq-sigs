@@ -100,11 +100,20 @@ int main() {
     std::cout << "Creating a new triple-tree signing key. This may take a while." << std::endl;
     std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2 + merkleheight3)) << " messages" << std::endl;
     auto skey3l = signing_key_3l();
+    std::vector<std::string> cached2;
+    cached2.push_back("");
+    cached2.push_back("");
+    cached2.push_back(skey3l.pubkey());
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 +merkleheight3)); ind++) {
         try {
-            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << std::endl;
+            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
             auto signature = skey3l.sign_message(msg);
-            //auto sign2 = verifyable_signature_2l(signature);
+            auto sign3 = verifyable_signature_3l(signature, cached2);
+	    if (sign3.validate(msg)) {
+                 std::cout << "OK" << std::endl;
+            } else {
+                 std::cout << "FAIL, WE HAVE WORK TO DO HERE" << std::endl;
+            }
         } catch  (const spqsigs::signingkey_exhausted&) {
             std::cout << "OOPS" << std::endl;
             except_count += 1;
@@ -117,11 +126,21 @@ int main() {
     std::cout << "Creating a new quadrupal-tree signing key. This may take a while." << std::endl;
     std::cout << " - key meant to sign " <<  (1ull << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " messages" << std::endl;
     auto skey4l = signing_key_4l();
+    std::vector<std::string> cached3;
+    cached3.push_back("");
+    cached3.push_back("");
+    cached3.push_back("");
+    cached3.push_back(skey4l.pubkey());
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << std::endl;
             auto signature = skey4l.sign_message(msg);
-            //auto sign2 = verifyable_signature_2l(signature);
+            auto sign4 = verifyable_signature_4l(signature, cached3);
+	    if (sign4.validate(msg)) {
+                 std::cout << "OK" << std::endl;
+            } else {
+                 std::cout << "FAIL, WE HAVE WORK TO DO HERE" << std::endl;
+            }
         } catch  (const spqsigs::signingkey_exhausted&) {
             std::cout << "OOPS" << std::endl;
             except_count += 1;

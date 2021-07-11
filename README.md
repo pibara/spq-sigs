@@ -15,12 +15,14 @@ This C++ library started out as a port of the Python [PySpqSigs](https://github.
 * Added some long overdue comments to the code.
 * Implemented multi-tree signing (experimental) up to four levels.
 * Replace seperate multy-tree templates with a variadic template solution.
+* Implement (variadic) multi-tree signature validation. (working for double tree, tripple and up not just yet.
+* Updatate API to work with optionally omitted sub-key signing signatures.
+
 
 ## todo Minimal Viable Product
 
-* Implement (variadic) multi-tree signature validation up to four levels and test if multi-tree signing works correctly.
+* Fix variadic template for mutli-tree signatures and validation beyond two trees. Only works for double tree now, not tripple, quadruple or up.
 * Add multi-tree signature serialization/deserialisation where known sub-key signing signatures can optionally be ommitted.
-* Updatate API to work with optionally omitted sub-key signing signatures.
 * Private key serialization and de-serialization (for wallets and persistence).
 * Private key password protection (use libsodium).
 

@@ -598,10 +598,13 @@ namespace spqsigs {
 					m_signature_body.push_back(newval);
 				}
 			}
-			bool validate(std::string message) {
+			bool validate(std::string message, bool is_digest=false) {
 				// * get the message digest
 				non_api::primative<hashlen, wotsbits, merkleheight> hashfunction(m_salt);
-				std::string digest = hashfunction(message);
+				std::string digest = message;
+				if (is_digest == false) {
+				    digest = hashfunction(message);
+				}
 				//Convert the digest to a list of numbers, the same list used for signing.
 				auto numlist = non_api::digest_to_numlist<hashlen, wotsbits>(digest);
 				// * complete the wots chains and calculate what should be the WOTS pubkey for this index.
@@ -653,14 +656,14 @@ namespace spqsigs {
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
                 struct multi_signature {
-                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, uint8_t treedepth=0):
+                        multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, int treedepth=0):
 				m_level_ok(true),
 				m_cached(true),
 				m_signature(sig),
 				m_index(0),
 				m_last_known(last_known),
 				m_treedepth(treedepth),
-				m_deeper_signature(sig, treedepth+1),
+				m_deeper_signature(sig, last_known, treedepth + 1),
 			        m_pubkey(), m_salt() {
 				    auto tree_count = treedepth +  sizeof...(Args) + 2;
 				    auto my_index = tree_count - treedepth - 2;
@@ -669,7 +672,7 @@ namespace spqsigs {
 				    if (found != expected) {
 					m_cached = false;
 				        signature<hashlen, wotsbits, merkleheight2> pubkey_signature(sig.second[my_index].second);
-                                        m_level_ok = pubkey_signature.validate(found);
+                                        m_level_ok = pubkey_signature.validate(found, true);
 					if (m_level_ok) {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
                                                 m_level_ok = false;
@@ -711,7 +714,7 @@ namespace spqsigs {
 			std::pair<std::string, std::vector<std::pair<std::string, std::string>>> m_signature;
 			uint16_t m_index;
 			std::vector<std::string> &m_last_known;
-			uint8_t m_treedepth;
+			int m_treedepth;
                         multi_signature<hashlen, wotsbits, merkleheight2, Args...> m_deeper_signature;
 			std::string m_pubkey;
 			std::string m_salt;
@@ -719,7 +722,7 @@ namespace spqsigs {
 
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
                 struct multi_signature<hashlen, wotsbits, merkleheight, merkleheight2> {
-			multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, uint8_t treedepth=0):
+			multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig, std::vector<std::string> &last_known, int treedepth=0):
 				m_level_ok(true),
                                 m_cached(true),
 				m_message_signature(sig.first),
@@ -735,17 +738,14 @@ namespace spqsigs {
                                         m_cached = false;
 					std::string signature_string(sig.second[my_index].second);
 					signature<hashlen, wotsbits, merkleheight> pubkey_signature(signature_string);
-                                        m_level_ok = pubkey_signature.validate(found);
+                                        m_level_ok = pubkey_signature.validate(m_message_signature.get_pubkey(), true);
                                         if (m_level_ok) {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
                                                 m_level_ok = false;
-						std::cout << " OOPS1 ";
                                             } else {
                                                 m_pubkey = pubkey_signature.get_pubkey();
                                                 m_salt = pubkey_signature.get_pubkey_salt();
                                             }
-                                        } else {
-                                            std::cout << " OOPS2 "; // FIXME: Currently the two tree walkthrough ends up here while it shouldn't
 					}
                                     }
 				}
@@ -791,7 +791,7 @@ namespace spqsigs {
                         signature<hashlen, wotsbits, merkleheight2> m_message_signature;
 			uint16_t m_index;
 			std::vector<std::string> &m_last_known;
-                        uint8_t m_treedepth;
+                        int m_treedepth;
                         std::string m_pubkey;
                         std::string m_salt;
 		};
