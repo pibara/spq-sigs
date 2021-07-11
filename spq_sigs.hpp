@@ -675,8 +675,15 @@ namespace spqsigs {
                                         m_level_ok = pubkey_signature.validate(found, true);
 					if (m_level_ok) {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
-						std::cout << treedepth << " OOPS2 ";
-                                                m_level_ok = false;
+						if (my_index < tree_count - 2) {
+                                                    if (pubkey_signature.get_pubkey() != sig.second[my_index + 1].first) {
+                                                        std::cout << treedepth << " OOPS3 " << my_index + 1 << " ";
+                                                        m_level_ok = false;
+                                                    }
+                                                } else {
+                                                    std::cout << treedepth << " OOPS2 " << my_index << " ";
+                                                    m_level_ok = false;
+                                                }
 					    } else {
                                                 m_pubkey = pubkey_signature.get_pubkey();
 						m_salt = pubkey_signature.get_pubkey_salt();
@@ -746,10 +753,11 @@ namespace spqsigs {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
 						if (my_index < tree_count - 2) {
                                                     if (pubkey_signature.get_pubkey() != sig.second[my_index + 1].first) {
-                                                        std::cout << treedepth << " OOPS5 " << my_index + 1 << " ";
+                                                        std::cout << treedepth << " OOPS6 " << my_index + 1 << " ";
+							m_level_ok = false;
 						    }
 						} else {
-						    std::cout << treedepth << " OOPS4 " << my_index << " ";
+						    std::cout << treedepth << " OOPS5 " << my_index << " ";
                                                     m_level_ok = false;
 						}
                                             } else {
@@ -757,7 +765,7 @@ namespace spqsigs {
                                                 m_salt = pubkey_signature.get_pubkey_salt();
                                             }
 					} else {
-                                            std::cout << treedepth << " OOPS3 ";
+                                            std::cout << treedepth << " OOPS4 ";
 					}
                                     }
 				}
@@ -767,7 +775,7 @@ namespace spqsigs {
                                 if (m_message_signature.validate(message)) {
                                     rval = true;
 				} else {
-                                    std::cout << " OOPS5 ";
+                                    std::cout << " OOPS7 ";
 				}
 			    }
 			    return  rval;
