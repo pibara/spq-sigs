@@ -66,7 +66,6 @@ int main() {
     } catch (const spqsigs::signingkey_exhausted&) {
         std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
     }
-    std::cout << "##### THE BELOW PART IS NOT YET WORKING! #########" << std::endl;
     ok_count = 0;
     fail_count = 0;
     except_count = 0;
@@ -76,11 +75,14 @@ int main() {
     std::vector<std::string> cached;
     cached.push_back("");
     cached.push_back(skey2l.pubkey());
-
+    spqsigs::reducer reducer2l;
+    spqsigs::expander expander2l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2)); ind++) {
         try {
 	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << " ";
             auto signature = skey2l.sign_message(msg);
+	    reducer2l.reduce(signature);
+            expander2l.expand(signature);
             auto sign2 = verifyable_signature_2l(signature, cached);
 	    if (sign2.validate(msg)) {
                  std::cout << "OK" << std::endl;
@@ -104,10 +106,14 @@ int main() {
     cached2.push_back("");
     cached2.push_back("");
     cached2.push_back(skey3l.pubkey());
+    spqsigs::reducer reducer3l;
+    spqsigs::expander expander3l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 +merkleheight3)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
             auto signature = skey3l.sign_message(msg);
+	    reducer3l.reduce(signature);
+            expander3l.expand(signature);
             auto sign3 = verifyable_signature_3l(signature, cached2);
 	    if (sign3.validate(msg)) {
                  std::cout << "OK" << std::endl;
@@ -131,10 +137,14 @@ int main() {
     cached3.push_back("");
     cached3.push_back("");
     cached3.push_back(skey4l.pubkey());
+    spqsigs::reducer reducer4l;
+    spqsigs::expander expander4l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << std::endl;
             auto signature = skey4l.sign_message(msg);
+	    reducer4l.reduce(signature);
+            expander4l.expand(signature);
             auto sign4 = verifyable_signature_4l(signature, cached3);
 	    if (sign4.validate(msg)) {
                  std::cout << "OK" << std::endl;

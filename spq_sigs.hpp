@@ -27,6 +27,10 @@ namespace spqsigs {
         {
             using std::exception::exception;
         };
+	struct insufficient_expand_state : std::exception
+        {
+            using std::exception::exception;
+        };
 	// declaration for signing_key class template defined at bottom of this file. 
 	template<uint8_t hashlen=24, uint8_t wotsbits=12, uint8_t merkleheight=10>
 		struct signing_key;
@@ -815,5 +819,62 @@ namespace spqsigs {
                         std::string m_pubkey;
                         std::string m_salt;
 		};
+
+    struct reducer {
+        reducer(): m_last_time() {}
+        void reduce(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &in) {
+            if (m_last_time.size() == 0) {
+                for ( auto &i : in.second ) {
+                    m_last_time.push_back(i.first);
+		}
+	    } else {
+		bool skip_rest = false;
+		size_t index = 0;
+                for ( auto &i : in.second ) {
+                    if (skip_rest or i.first == m_last_time[index]) {
+                        skip_rest = true;
+			i.second = std::string("");
+		    }
+		    index++;
+                }
+	    }
+	}
+      private:
+        std::vector<std::string> m_last_time;	
+    };
+    struct expander {
+         expander(): m_last_time(),m_last_time_keys() {}
+	 void expand(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &in) {
+             if (m_last_time.size() == 0) {
+                 for ( auto &i : in.second ) {
+		    if (i.second == "") {
+                        throw insufficient_expand_state();
+		    }
+                    m_last_time.push_back(i.first);
+		    m_last_time_keys.push_back(i.second);
+                }
+	     } else {
+		  size_t index = 0;
+                  for ( auto &i : in.second ) {
+		      if (i.first == m_last_time[index]) {
+			 if  (i.second == std::string("")) {
+                              i.second = m_last_time_keys[index]; 
+			 }
+		      } else {
+			  if (i.second == "") {
+			      std::cout << index << std::endl;
+                              throw insufficient_expand_state();
+                          }
+                          m_last_time[index] = i.first;
+                          m_last_time_keys[index] = i.second;
+		      }
+		      index++;
+		  }
+	     }
+	 }
+      private:
+	 std::vector<std::string> m_last_time;
+	 std::vector<std::string> m_last_time_keys;
+    };
 }
 #endif
