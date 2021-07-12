@@ -149,7 +149,7 @@ int main() {
             auto signature = skey4l.sign_message(msg);
 	    reducer4l.reduce(signature);
 	    std::string serialized4l = spqsigs::serialize(signature, skey3l.pubkey());
-            std::cout << " " << serialized4l.size() << " " << std::endl;
+            std::cout << " " << serialized4l.size() << "-byte signature ";
             expander4l.expand(signature);
             auto sign4 = verifyable_signature_4l(signature, cached3);
 	    if (sign4.validate(msg)) {
