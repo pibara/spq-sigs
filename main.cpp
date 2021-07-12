@@ -82,6 +82,8 @@ int main() {
 	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << " ";
             auto signature = skey2l.sign_message(msg);
 	    reducer2l.reduce(signature);
+	    std::string serialized2l = spqsigs::serialize(signature, skey2l.pubkey());
+	    std::cout << " " << serialized2l.size() << " " << std::endl; 
             expander2l.expand(signature);
             auto sign2 = verifyable_signature_2l(signature, cached);
 	    if (sign2.validate(msg)) {
@@ -113,6 +115,8 @@ int main() {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
             auto signature = skey3l.sign_message(msg);
 	    reducer3l.reduce(signature);
+	    std::string serialized3l = spqsigs::serialize(signature, skey3l.pubkey());
+            std::cout << " " << serialized3l.size() << " " << std::endl;
             expander3l.expand(signature);
             auto sign3 = verifyable_signature_3l(signature, cached2);
 	    if (sign3.validate(msg)) {
@@ -141,9 +145,11 @@ int main() {
     spqsigs::expander expander4l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
         try {
-            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << std::endl;
+            std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " ";
             auto signature = skey4l.sign_message(msg);
 	    reducer4l.reduce(signature);
+	    std::string serialized4l = spqsigs::serialize(signature, skey3l.pubkey());
+            std::cout << " " << serialized4l.size() << " " << std::endl;
             expander4l.expand(signature);
             auto sign4 = verifyable_signature_4l(signature, cached3);
 	    if (sign4.validate(msg)) {
