@@ -91,8 +91,8 @@ int main() {
 	    reducer2l.reduce(signature);
 	    std::string serialized2l = spqsigs::serialize(signature, skey2l.pubkey());
 	    std::cout << " " << serialized2l.size() << "-byte signature "; 
-	    auto deserialized = deserialize2l(serialized2l);
-	    signature = deserialized.second;
+	    auto deserialized2 = deserialize2l(serialized2l);
+	    signature = deserialized2.second;
             expander2l.expand(signature);
             auto sign2 = verifyable_signature_2l(signature, cached);
 	    if (sign2.validate(msg)) {
@@ -119,6 +119,7 @@ int main() {
     cached2.push_back(skey3l.pubkey());
     spqsigs::reducer reducer3l;
     spqsigs::expander expander3l;
+    deserializer_2l deserialize3l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 +merkleheight3)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
@@ -126,7 +127,8 @@ int main() {
 	    reducer3l.reduce(signature);
 	    std::string serialized3l = spqsigs::serialize(signature, skey3l.pubkey());
             std::cout << " " << serialized3l.size() << " -byte signature ";
-	    //FIXME: we need a working deserialize here!
+	    auto deserialized3 = deserialize3l(serialized3l);
+            signature = deserialized3.second;
             expander3l.expand(signature);
             auto sign3 = verifyable_signature_3l(signature, cached2);
 	    if (sign3.validate(msg)) {
@@ -153,6 +155,7 @@ int main() {
     cached3.push_back(skey4l.pubkey());
     spqsigs::reducer reducer4l;
     spqsigs::expander expander4l;
+    deserializer_2l deserialize4l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " ";
@@ -160,7 +163,8 @@ int main() {
 	    reducer4l.reduce(signature);
 	    std::string serialized4l = spqsigs::serialize(signature, skey3l.pubkey());
             std::cout << " " << serialized4l.size() << "-byte signature ";
-	    //FIXME: we need a working deserialize here!
+	    auto deserialized4 = deserialize4l(serialized4l);
+            signature = deserialized4.second;
             expander4l.expand(signature);
             auto sign4 = verifyable_signature_4l(signature, cached3);
 	    if (sign4.validate(msg)) {

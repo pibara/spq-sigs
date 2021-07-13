@@ -820,9 +820,32 @@ namespace spqsigs {
                         std::string m_salt;
 		};
 
+    template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t ...Args>
+        struct deserializer_tail {
+		deserializer_tail(): m_deserializer_tail() {}
+                void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> rval, std::string in){
+                    constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
+                    constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
+		    if (in.size() >= expected_length) {
+                        rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(0,hashlen),""));
+		    } else {
+			std::string pubkey = rval.second.second[rval.second.second.size()-1].second;
+			std::string signature = in.substr(0,expected_length);
+                        rval.second.second.push_back(std::pair<std::string, std::string>(pubkey,signature));
+			std::string remaining = in.substr(expected_length, in.size() - expected_length);
+			if (remaining.size() > 0) {
+                            m_deserializer_tail(rval, remaining);
+			}
+	            }
+                    return;
+		}
+	    private:
+		deserializer_tail<hashlen, wotsbits, Args...> m_deserializer_tail;
+	};	
+
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 	struct deserializer {
-                deserializer(): m_deserializer() {}
+                deserializer(): m_deserializer(),m_deserializer_tail() {}
     	        std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in) {
 		    constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits; 
                     constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
@@ -830,15 +853,23 @@ namespace spqsigs {
                     constexpr size_t expected_total_length_full = expected_length + expected_length2;
                     constexpr size_t expected_total_length_reduced = expected_length + 2 * hashlen;
 		    if (in.size() > expected_total_length_full) {
-                        auto lower = m_deserializer(in.substr(0, expected_total_length_full));
-			return lower; //FIXME
+                        auto rval = m_deserializer(in.substr(0, expected_total_length_full));
+                        size_t start = expected_total_length_full;
+                        m_deserializer_tail(rval, in.substr(expected_total_length_full, in.size() - expected_total_length_full));
+			return rval;
 		    } else {
-                        auto lower = m_deserializer(in.substr(0, expected_total_length_reduced));
-			return lower; // FIXME
+                        auto rval = m_deserializer(in.substr(0, expected_total_length_reduced));
+			size_t start = expected_total_length_full;
+			while (start + hashlen <= in.size()) {
+                            rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(start,hashlen),""));
+                            start += hashlen;
+			}
+			return rval;
 		    }
     	        }
 	    private:
 		deserializer<hashlen, wotsbits, merkleheight, merkleheight2> m_deserializer;
+		deserializer_tail<hashlen, wotsbits, Args...> m_deserializer_tail;
 	};
 
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
