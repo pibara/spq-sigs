@@ -821,12 +821,29 @@ namespace spqsigs {
 		};
 
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
-	    std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> deserialize(std::string) {
-                return std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>>();
-	    }
+	struct deserializer {
+                deserializer(): m_deserializer() {}
+    	        std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in) {
+		    constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits; 
+                    constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
+		    constexpr size_t expected_length2 = 2 + hashlen * (2 + merkleheight2 + 2 * subkey_count);
+                    constexpr size_t expected_total_length_full = expected_length + expected_length2;
+                    constexpr size_t expected_total_length_reduced = expected_length + 2 * hashlen;
+		    if (in.size() > expected_total_length_full) {
+                        auto lower = m_deserializer(in.substr(0, expected_total_length_full));
+			return lower; //FIXME
+		    } else {
+                        auto lower = m_deserializer(in.substr(0, expected_total_length_reduced));
+			return lower; // FIXME
+		    }
+    	        }
+	    private:
+		deserializer<hashlen, wotsbits, merkleheight, merkleheight2> m_deserializer;
+	};
 
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
-	    std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> deserialize(std::string in) {
+	struct deserializer<hashlen, wotsbits, merkleheight, merkleheight2> {
+	    std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in) {
                 constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 		constexpr size_t expected_length2 = 2 + hashlen * (2 + merkleheight2 + 2 * subkey_count);
@@ -847,18 +864,20 @@ namespace spqsigs {
                         std::string mainsig = in.substr(0, expected_length);
 			std::string key1 =  in.substr(0, hashlen);
 			std::string sig1("");
-			std::string pubkey = in.substr(expected_length, hashlen);
+			std::string pubkey = in.substr(in.size()-hashlen, hashlen);
                         std::vector<std::pair<std::string, std::string>> rval;
 			std::pair<std::string, std::string> pair(key1, sig1);
                         rval.push_back(pair);
                         std::pair<std::string, std::vector<std::pair<std::string, std::string>>> rval2(mainsig, rval);
                         return std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>>(pubkey, rval2);
 		    } else {
-                        throw std::invalid_argument("Wrong signature size.");
+			std::cout << std::endl << in.size() << " , expected " << expected_total_length_full << " or " << expected_total_length_reduced  << " : " << expected_length << std::endl;
+                        throw std::invalid_argument("Wrong signature size (*2).");
 		    }
 		}
 
 	    }
+	};
 
     std::string serialize(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> in, std::string pubkey) {
         std::string rval = in.first;
@@ -868,6 +887,7 @@ namespace spqsigs {
                 rval += i.first;
 	    } else {
                 if (i.second == "") {
+		    rval += i.first;
                     end_reached = true;
 	        } else {
                     rval += i.second;
@@ -894,7 +914,9 @@ namespace spqsigs {
                     if (skip_rest or i.first == m_last_time[index]) {
                         skip_rest = true;
 			i.second = std::string("");
-		    }
+		    } else {
+                        m_last_time[index] = i.first;
+                    }
 		    index++;
                 }
 	    }
