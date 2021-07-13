@@ -17,7 +17,7 @@ std::string as_hex(std::string binary) {
 
 constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
-constexpr unsigned char merkleheight=10;
+constexpr unsigned char merkleheight=6;
 constexpr unsigned char merkleheight1=4;
 constexpr unsigned char merkleheight2=4;
 constexpr unsigned char merkleheight3=4;
@@ -35,7 +35,7 @@ typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2, m
 
 typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> signing_key_4l;
 typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> verifyable_signature_4l;
-//typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4>  deserializer_4l;
+typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4>  deserializer_4l;
 
 
 int main() {
@@ -119,7 +119,7 @@ int main() {
     cached2.push_back(skey3l.pubkey());
     spqsigs::reducer reducer3l;
     spqsigs::expander expander3l;
-    deserializer_2l deserialize3l;
+    deserializer_3l deserialize3l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 +merkleheight3)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
@@ -155,7 +155,7 @@ int main() {
     cached3.push_back(skey4l.pubkey());
     spqsigs::reducer reducer4l;
     spqsigs::expander expander4l;
-    deserializer_2l deserialize4l;
+    deserializer_4l deserialize4l;
     for (int ind=0; ind < (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)); ind++) {
         try {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " ";

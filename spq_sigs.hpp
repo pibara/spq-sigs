@@ -579,7 +579,8 @@ namespace spqsigs {
                                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 				// * check signature length
 				if (sigstring.length() != expected_length) {
-					throw std::invalid_argument("Wrong signature size.");
+					std::cout << sigstring.length() << " != " << expected_length << std::endl;
+					throw std::invalid_argument("Wrong signature size. *1");
 				}
 				// * get pubkey, salt, index, mt-header and wots-body and store them till validate gets invoked
 				m_pubkey = std::string(sigstring.c_str(), hashlen);
@@ -757,7 +758,7 @@ namespace spqsigs {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
 						if (my_index < tree_count - 2) {
                                                     if (pubkey_signature.get_pubkey() != sig.second[my_index + 1].first) {
-                                                        std::cout << treedepth << " OOPS6 " << my_index + 1 << " ";
+                                                        std::cout << " treedepth:" << treedepth << " OOPS6,  index=" << my_index + 1 << " ";
 							m_level_ok = false;
 						    }
 						} else {
@@ -823,11 +824,15 @@ namespace spqsigs {
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t ...Args>
         struct deserializer_tail {
 		deserializer_tail(): m_deserializer_tail() {}
-                void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> rval, std::string in){
+                void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> &rval, std::string in){
                     constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                     constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
-		    if (in.size() >= expected_length) {
-                        rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(0,hashlen),""));
+		    if (in.size() < expected_length) {
+			size_t start = 0;
+			while (start + hashlen <= in.size()) {
+                            rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(start,hashlen),""));
+			    start += hashlen;
+			}
 		    } else {
 			std::string pubkey = rval.second.second[rval.second.second.size()-1].second;
 			std::string signature = in.substr(0,expected_length);
@@ -843,6 +848,19 @@ namespace spqsigs {
 		deserializer_tail<hashlen, wotsbits, Args...> m_deserializer_tail;
 	};	
 
+    template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
+	struct deserializer_tail<hashlen, wotsbits, merkleheight> {
+            void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> &rval, std::string in){
+	        constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
+                constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
+		if (in.size() == expected_length) {
+                    std::string pubkey = rval.second.second[rval.second.second.size()-1].second;
+                    std::string signature = in.substr(0,expected_length);
+                    rval.second.second.push_back(std::pair<std::string, std::string>(pubkey,signature));
+		}
+	    }
+	};
+
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 	struct deserializer {
                 deserializer(): m_deserializer(),m_deserializer_tail() {}
@@ -853,14 +871,18 @@ namespace spqsigs {
                     constexpr size_t expected_total_length_full = expected_length + expected_length2;
                     constexpr size_t expected_total_length_reduced = expected_length + 2 * hashlen;
 		    if (in.size() > expected_total_length_full) {
+			std::cout << "Expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
                         auto rval = m_deserializer(in.substr(0, expected_total_length_full));
-                        size_t start = expected_total_length_full;
+			std::cout << "Processing tail" << std::endl;
                         m_deserializer_tail(rval, in.substr(expected_total_length_full, in.size() - expected_total_length_full));
+			std::cout << "Done" << std::endl;
 			return rval;
 		    } else {
+			    std::cout << "Smaller than expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
                         auto rval = m_deserializer(in.substr(0, expected_total_length_reduced));
 			size_t start = expected_total_length_full;
 			while (start + hashlen <= in.size()) {
+			    std::cout << "Adding empty entry to tail" << std::endl;
                             rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(start,hashlen),""));
                             start += hashlen;
 			}
