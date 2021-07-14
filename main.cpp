@@ -15,13 +15,35 @@ std::string as_hex(std::string binary) {
     return rval;
 }
 
+std::string hex_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &in) {
+	std::string rval = std::string("########################## SIGNATURE #########################\n") + as_hex(in.first) + "\n------------------------------------------------------\n";
+    for ( auto &i : in.second ) {
+        rval += std::string("+++ ") + as_hex(i.first) + " +++\n";
+	if (i.second != "") {
+            rval += as_hex(i.second) + "\n";
+	}
+    }
+    rval += "###############################################################\n";
+    return rval;
+}
+
+bool compare_signatures(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &in1, std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &in2) {
+    bool ok = (in1.first == in2.first) and (in1.second.size() == in2.second.size());
+    for (size_t index=0; ok and index< in1.second.size(); index++) {
+        auto pr1 = in1.second[index];
+	auto pr2 = in2.second[index];
+	ok = (pr1.first == pr2.first) and (pr1.second == pr2.second);
+    }
+    return ok;
+}
+
 constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
 constexpr unsigned char merkleheight=6;
-constexpr unsigned char merkleheight1=4;
-constexpr unsigned char merkleheight2=4;
-constexpr unsigned char merkleheight3=4;
-constexpr unsigned char merkleheight4=4;
+constexpr unsigned char merkleheight1=3;
+constexpr unsigned char merkleheight2=3;
+constexpr unsigned char merkleheight3=3;
+constexpr unsigned char merkleheight4=3;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
 
@@ -128,9 +150,15 @@ int main() {
 	    std::string serialized3l = spqsigs::serialize(signature, skey3l.pubkey());
             std::cout << " " << serialized3l.size() << " -byte signature ";
 	    auto deserialized3 = deserialize3l(serialized3l);
-            signature = deserialized3.second;
-            expander3l.expand(signature);
-            auto sign3 = verifyable_signature_3l(signature, cached2);
+	    auto signature_out = deserialized3.second;
+	    if (compare_signatures(signature, signature_out) == false) {
+		std::cout << std::endl;
+		std::cout << as_hex(serialized3l) << std::endl;
+                std::cout << hex_signature(signature);
+                std::cout << hex_signature(signature_out);
+	    }
+            expander3l.expand(signature_out);
+            auto sign3 = verifyable_signature_3l(signature_out, cached2);
 	    if (sign3.validate(msg)) {
                  std::cout << "OK" << std::endl;
             } else {
@@ -164,9 +192,15 @@ int main() {
 	    std::string serialized4l = spqsigs::serialize(signature, skey3l.pubkey());
             std::cout << " " << serialized4l.size() << "-byte signature ";
 	    auto deserialized4 = deserialize4l(serialized4l);
-            signature = deserialized4.second;
-            expander4l.expand(signature);
-            auto sign4 = verifyable_signature_4l(signature, cached3);
+	    auto signature_out = deserialized4.second;
+	    if (compare_signatures(signature, signature_out) == false) {
+                std::cout << std::endl;
+                std::cout << as_hex(serialized4l) << std::endl;
+                std::cout << hex_signature(signature);
+                std::cout << hex_signature(signature_out);
+            }
+            expander4l.expand(signature_out);
+            auto sign4 = verifyable_signature_4l(signature_out, cached3);
 	    if (sign4.validate(msg)) {
                  std::cout << "OK" << std::endl;
             } else {

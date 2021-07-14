@@ -579,7 +579,7 @@ namespace spqsigs {
                                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 				// * check signature length
 				if (sigstring.length() != expected_length) {
-					std::cout << sigstring.length() << " != " << expected_length << std::endl;
+					//std::cout << sigstring.length() << " != " << expected_length << std::endl;
 					throw std::invalid_argument("Wrong signature size. *1");
 				}
 				// * get pubkey, salt, index, mt-header and wots-body and store them till validate gets invoked
@@ -682,11 +682,11 @@ namespace spqsigs {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
 						if (my_index < tree_count - 2) {
                                                     if (pubkey_signature.get_pubkey() != sig.second[my_index + 1].first) {
-                                                        std::cout << treedepth << " OOPS3 " << my_index + 1 << " ";
+                                                        //std::cout << treedepth << " OOPS3 " << my_index + 1 << " ";
                                                         m_level_ok = false;
                                                     }
                                                 } else {
-                                                    std::cout << treedepth << " OOPS2 " << my_index << " ";
+                                                    //std::cout << treedepth << " OOPS2 " << my_index << " ";
                                                     m_level_ok = false;
                                                 }
 					    } else {
@@ -694,7 +694,7 @@ namespace spqsigs {
 						m_salt = pubkey_signature.get_pubkey_salt();
 					    }
 				        } else {
-                                            std::cout << treedepth << " OOPS1 ";
+                                            //std::cout << treedepth << " OOPS1 ";
 					}
 				    }
 				}
@@ -758,11 +758,11 @@ namespace spqsigs {
                                             if (pubkey_signature.get_pubkey() != last_known[my_index + 1]) {
 						if (my_index < tree_count - 2) {
                                                     if (pubkey_signature.get_pubkey() != sig.second[my_index + 1].first) {
-                                                        std::cout << " treedepth:" << treedepth << " OOPS6,  index=" << my_index + 1 << " ";
+                                                        //std::cout << " treedepth:" << treedepth << " OOPS6,  index=" << my_index + 1 << " ";
 							m_level_ok = false;
 						    }
 						} else {
-						    std::cout << treedepth << " OOPS5 " << my_index << " ";
+						    //std::cout << treedepth << " OOPS5 " << my_index << " ";
                                                     m_level_ok = false;
 						}
                                             } else {
@@ -770,7 +770,7 @@ namespace spqsigs {
                                                 m_salt = pubkey_signature.get_pubkey_salt();
                                             }
 					} else {
-                                            std::cout << treedepth << " OOPS4 ";
+                                            //std::cout << treedepth << " OOPS4 ";
 					}
                                     }
 				}
@@ -780,7 +780,7 @@ namespace spqsigs {
                                 if (m_message_signature.validate(message)) {
                                     rval = true;
 				} else {
-                                    std::cout << " OOPS7 ";
+                                    //std::cout << " OOPS7 ";
 				}
 			    }
 			    return  rval;
@@ -825,17 +825,20 @@ namespace spqsigs {
         struct deserializer_tail {
 		deserializer_tail(): m_deserializer_tail() {}
                 void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> &rval, std::string in){
+		    //std::cout << "DESERIALIZE_TAIL GENERIC" << std::endl;
                     constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                     constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 		    if (in.size() < expected_length) {
 			size_t start = 0;
-			while (start + hashlen <= in.size()) {
+			while (start + 2 * hashlen <= in.size()) {
+			    //std::cout << "deserializer_tail empty #1" << std::endl;
                             rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(start,hashlen),""));
 			    start += hashlen;
 			}
 		    } else {
-			std::string pubkey = rval.second.second[rval.second.second.size()-1].second;
+			std::string pubkey = rval.second.second[rval.second.second.size()-1].second.substr(0,hashlen);
 			std::string signature = in.substr(0,expected_length);
+			//std::cout << "deserializer_tail #1 " << pubkey.size() << "," << signature.size() << std::endl;
                         rval.second.second.push_back(std::pair<std::string, std::string>(pubkey,signature));
 			std::string remaining = in.substr(expected_length, in.size() - expected_length);
 			if (remaining.size() > 0) {
@@ -851,12 +854,20 @@ namespace spqsigs {
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 	struct deserializer_tail<hashlen, wotsbits, merkleheight> {
             void  operator()(std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> &rval, std::string in){
+		//std::cout << "DESERIALIZE_TAIL START" << std::endl;
 	        constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 		if (in.size() == expected_length) {
-                    std::string pubkey = rval.second.second[rval.second.second.size()-1].second;
+                    std::string pubkey = rval.second.second[rval.second.second.size()-1].second.substr(0,hashlen);
                     std::string signature = in.substr(0,expected_length);
+		    //std::cout << "deserializer_tail #2 " << pubkey.size() << "," << signature.size() << std::endl;
                     rval.second.second.push_back(std::pair<std::string, std::string>(pubkey,signature));
+		} else {
+		    if (in.size() == 2*hashlen) {
+                        rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(0,hashlen),""));   
+		    } else {
+                        //std::cout << "DESERIALIZE_TAIL START unexpected size: " << in.size() << " !=" << expected_length << std::endl;
+		    }
 		}
 	    }
 	};
@@ -865,24 +876,25 @@ namespace spqsigs {
 	struct deserializer {
                 deserializer(): m_deserializer(),m_deserializer_tail() {}
     	        std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in) {
+		    //std::cout << "DESERIALIZE GENERIC" << std::endl;
 		    constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits; 
                     constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 		    constexpr size_t expected_length2 = 2 + hashlen * (2 + merkleheight2 + 2 * subkey_count);
                     constexpr size_t expected_total_length_full = expected_length + expected_length2;
                     constexpr size_t expected_total_length_reduced = expected_length + 2 * hashlen;
 		    if (in.size() > expected_total_length_full) {
-			std::cout << "Expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
+			//std::cout << "Expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
                         auto rval = m_deserializer(in.substr(0, expected_total_length_full));
-			std::cout << "Processing tail" << std::endl;
+			//std::cout << "Processing tail" << std::endl;
                         m_deserializer_tail(rval, in.substr(expected_total_length_full, in.size() - expected_total_length_full));
-			std::cout << "Done" << std::endl;
+			//std::cout << "Done" << std::endl;
 			return rval;
 		    } else {
-			    std::cout << "Smaller than expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
+			//std::cout << "Smaller than expected full length :" << expected_total_length_full << " from " << in.size() << std::endl;
                         auto rval = m_deserializer(in.substr(0, expected_total_length_reduced));
-			size_t start = expected_total_length_full;
-			while (start + hashlen <= in.size()) {
-			    std::cout << "Adding empty entry to tail" << std::endl;
+			size_t start = expected_length + hashlen;
+			while (start + 2*hashlen <= in.size()) {
+			    //std::cout << "Adding empty entry to tail" << std::endl;
                             rval.second.second.push_back(std::pair<std::string, std::string>(in.substr(start,hashlen),""));
                             start += hashlen;
 			}
@@ -897,6 +909,7 @@ namespace spqsigs {
     template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
 	struct deserializer<hashlen, wotsbits, merkleheight, merkleheight2> {
 	    std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in) {
+		//std::cout << "DESERIALIZE START" << std::endl;
                 constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
                 constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
 		constexpr size_t expected_length2 = 2 + hashlen * (2 + merkleheight2 + 2 * subkey_count);
@@ -909,6 +922,7 @@ namespace spqsigs {
 		    std::string pubkey = in.substr(expected_length, hashlen);
 		    std::vector<std::pair<std::string, std::string>> rval;
 		    std::pair<std::string, std::string> pair(key1, sig1);
+		    //std::cout << "Adding to tail " << key1.size() << "," << sig1.size() << std::endl;
 		    rval.push_back(pair);
                     std::pair<std::string, std::vector<std::pair<std::string, std::string>>> rval2(mainsig, rval);
 		    return std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>>(pubkey, rval2);
@@ -920,11 +934,12 @@ namespace spqsigs {
 			std::string pubkey = in.substr(in.size()-hashlen, hashlen);
                         std::vector<std::pair<std::string, std::string>> rval;
 			std::pair<std::string, std::string> pair(key1, sig1);
+			//std::cout << "Adding empty to tail 2" << std::endl;
                         rval.push_back(pair);
                         std::pair<std::string, std::vector<std::pair<std::string, std::string>>> rval2(mainsig, rval);
                         return std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>>(pubkey, rval2);
 		    } else {
-			std::cout << std::endl << in.size() << " , expected " << expected_total_length_full << " or " << expected_total_length_reduced  << " : " << expected_length << std::endl;
+			//std::cout << std::endl << in.size() << " , expected " << expected_total_length_full << " or " << expected_total_length_reduced  << " : " << expected_length << std::endl;
                         throw std::invalid_argument("Wrong signature size (*2).");
 		    }
 		}
@@ -997,7 +1012,7 @@ namespace spqsigs {
 			 }
 		      } else {
 			  if (i.second == "") {
-			      std::cout << index << std::endl;
+			      //std::cout << index << std::endl;
                               throw insufficient_expand_state();
                           }
                           m_last_time[index] = i.first;
