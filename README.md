@@ -6,7 +6,7 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 
 This C++ library started out as a port of the Python [PySpqSigs](https://github.com/pibara/pyspqsigs) library. It is now being refactored and extended after attempts to make this a funded HIVE project ended up failing. Once multi-tree and wallets have been implemented in this C++ library, the refactored and extended C++ implementation will get backported to Python. An important part of the Python backport will be moving from hashlib to libsodium.
 
-## status
+## Done
 
 * A signing key has been implemented.
 * A signature validator has been implemented.
@@ -17,23 +17,22 @@ This C++ library started out as a port of the Python [PySpqSigs](https://github.
 * Replace seperate multy-tree templates with a variadic template solution.
 * Implement (variadic) multi-tree signature validation.
 * Updatate API to work with optionally omitted sub-key signing signatures.
-* Add multi-tree signature serialization/deserialisation where known sub-key signing signatures can optionally be ommitted. (only works for dual-tree sigs for now)
+* Add multi-tree signature serialization/deserialisation where known sub-key signing signatures can optionally be ommitted. 
 
-## todo Minimal Viable Product
+## Todo for Minimal Viable Product
 
-* Fix problem with 3+-tree multi-tree serialization/deserialization
 * Private key serialization and de-serialization (for wallets and persistence).
 * Private key password protection (use libsodium).
 * Code cleanup.
 
-# todo, post-MVP
+# Todo post-MVP
 * Add multi-threading.
 * Work on const-correctness.
 * Document usage.
 * Add a sample project with cmake and stuff.
 * Profile and performance improve where possible.
 
-## todo (post Python backport)
+## todo post Python backport
 
 * Test signing/validation cross language compatability and fix if needed.
 * Test serialization/deserialization python/c++ cross-compatibility.

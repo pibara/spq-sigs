@@ -41,9 +41,9 @@ constexpr unsigned char hashlen=24;
 constexpr unsigned char wotsbits=12;
 constexpr unsigned char merkleheight=6;
 constexpr unsigned char merkleheight1=3;
-constexpr unsigned char merkleheight2=3;
-constexpr unsigned char merkleheight3=3;
-constexpr unsigned char merkleheight4=3;
+constexpr unsigned char merkleheight2=4;
+constexpr unsigned char merkleheight3=5;
+constexpr unsigned char merkleheight4=6;
 typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
 
