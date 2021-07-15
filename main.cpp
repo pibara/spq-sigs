@@ -127,6 +127,13 @@ int main() {
 	    std::cout << "OOPS" << std::endl;
             except_count += 1;
 	}
+	if (ind == 13) {
+            auto serialized = skey2l.get_state();
+            for ( auto &i : serialized ) {
+		    std::cout << as_hex(std::get<0>(i)) << std::endl;
+		    std::cout << int(std::get<1>(i)) << std::endl;
+	    }
+	}
     }
     std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
     ok_count = 0;
