@@ -320,13 +320,19 @@ namespace spqsigs {
                                                             private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
                                     }
 				}
+				std::string get_privkey() {
+                                    return "bogus";
+				}
 				//Only signing_key should invoke the constructor for private_keys
 				friend signing_key<hashlen, wotsbits, merkleheight>;
 				private:
 				//Private constructor, only to be called from signing_key
-				private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed): m_keys() {
+				private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed, std::string recovery=""): 
+					    m_keys() {
 					// Construct from multiple private_key's
 					for (size_t index=0; index < pubkey_size; index++) {
+						//FIXME: use recovery here!
+						auto rec = recovery;
 						m_keys.push_back(
 								private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
 					}
@@ -434,6 +440,20 @@ namespace spqsigs {
 				    //Get pubkey as a way to populate.
 				    this->m_merkle_tree.pubkey();
 			};
+			signing_key(std::tuple<std::string, uint16_t, std::string> &recover_state): 
+				m_next_index(std::get<1>(recover_state)),
+			        m_seed(std::get<0>(recover_state).substr(0,hashlen)),
+				m_hashfunction(std::get<0>(recover_state).substr(hashlen,hashlen)),
+				m_privkeys(m_hashfunction,
+					   m_seed,
+					   std::get<0>(recover_state).substr(hashlen*2,
+						                             std::get<0>(recover_state).size() - hashlen*2
+									    )
+					  ),
+				m_merkle_tree(m_hashfunction, m_privkeys) {
+				    //Get pubkey as a way to populate.
+                                    this->m_merkle_tree.pubkey();
+                        };
 			//Make a new key when current one is exhausted
 			void refresh() {
 			    m_next_index = 0;
@@ -442,10 +462,6 @@ namespace spqsigs {
 			    m_privkeys.refresh(m_hashfunction, m_seed);
 			    m_merkle_tree.refresh();
 			}
-			//Future API for restoring a signing key from serialization.
-			signing_key(std::string serialized) {
-				throw std::runtime_error("not yet implemented");
-			};
 			//Sign a hashlength bytes long digest.
 			std::string sign_digest(std::string digest) {
 				assert(digest.length() == hashlen);
@@ -474,7 +490,10 @@ namespace spqsigs {
 			};
 			//Future API call for serializing the signing key.
 			std::string get_state() {
-				throw std::runtime_error("not yet implemented");
+				return m_seed + m_hashfunction.get_salt() +  m_privkeys.get_privkey();
+			}
+			uint16_t get_next_index(){
+                            return m_next_index;
 			}
 			std::string pubkey() {
                             return m_merkle_tree.pubkey();
@@ -492,9 +511,14 @@ namespace spqsigs {
         // The multi-tree variant of the signing key. First for three and more merkle trees.
         template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 		struct multi_signing_key {
-                    multi_signing_key(bool assume_peer_caching=false): m_root_key(),
-		                                                       m_signing_key(),
+                    multi_signing_key(bool assume_peer_caching=false): m_signing_key(),
+								       m_root_key(),
 								       m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())),
+								       m_assume_peer_caching(assume_peer_caching) {}
+		    multi_signing_key(std::vector<std::tuple<std::string, uint16_t, std::string>> &recover_state,
+				      bool assume_peer_caching=false): m_signing_key(recover_state, assume_peer_caching),
+		                                                       m_root_key(recover_state[1+sizeof...(Args)]),
+								       m_signing_key_signature(std::get<2>(recover_state[1+sizeof...(Args)])),
 								       m_assume_peer_caching(assume_peer_caching) {}
                     std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
                         try {
@@ -509,9 +533,12 @@ namespace spqsigs {
                             return rval;
                         }
                     }
-                    std::string get_state() {
-                        return "bogus";
+		    std::vector<std::tuple<std::string, uint16_t, std::string>> get_state() {
+                        auto rval = m_signing_key.get_state();
+			rval.push_back(std::make_tuple(m_root_key.get_state(), m_root_key.get_next_index(),m_signing_key_signature));
+			return rval;
                     }
+
                     std::string pubkey() {
                         return m_root_key.pubkey();
                     }
@@ -522,8 +549,8 @@ namespace spqsigs {
                     }
                     virtual ~multi_signing_key(){}
                   private:
-                    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
                     multi_signing_key<hashlen, wotsbits, merkleheight2, Args...> m_signing_key;
+		    signing_key<hashlen, wotsbits, merkleheight> m_root_key;
                     std::string m_signing_key_signature;
 		    bool m_assume_peer_caching;
 		};
@@ -535,6 +562,11 @@ namespace spqsigs {
 		                                                        m_signing_key(),
 									m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())),
 		                                                        m_assume_peer_caching(assume_peer_caching) {}
+		    multi_signing_key(std::vector<std::tuple<std::string, uint16_t, std::string>> &recover_state,
+				      bool assume_peer_caching=false): m_root_key(recover_state[1]),
+		                                                       m_signing_key(recover_state[0]),
+								       m_signing_key_signature(std::get<2>(recover_state[1])),
+								       m_assume_peer_caching(assume_peer_caching) {}
 		    std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message){
                         std::string signature;
                         try {
@@ -548,8 +580,11 @@ namespace spqsigs {
                         rval.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                         return std::make_pair(signature,rval);
                     }
-                    std::string get_state() {
-                        return "bogus";
+		    std::vector<std::tuple<std::string, uint16_t, std::string>> get_state() {
+                        std::vector<std::tuple<std::string, uint16_t, std::string>> rval;
+			rval.push_back(std::make_tuple(m_signing_key.get_state(), m_signing_key.get_next_index(), ""));
+                        rval.push_back(std::make_tuple(m_root_key.get_state(), m_root_key.get_next_index(), m_signing_key_signature));
+			return rval;
                     }
                     std::string pubkey() {
                         return m_root_key.pubkey();
