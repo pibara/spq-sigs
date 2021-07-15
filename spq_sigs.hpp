@@ -293,7 +293,9 @@ namespace spqsigs {
 				//Private constructor, should only get invoked by private_keys
 				private_key(primative<hashlen, wotsbits, merkleheight> &hashprimative,
 						std::string seed,
-						size_t index): m_subkeys(){
+						size_t index,
+						std::string &recovery): m_subkeys(){
+					auto FIXME = recovery;
 					//Compose from its sub-keys.
 					for(size_t subindex=0; subindex < subkey_count; subindex++) {
 						m_subkeys.push_back(subkey(hashprimative, seed, index, subindex));
@@ -317,7 +319,10 @@ namespace spqsigs {
 				    m_keys.swap(empty);
                                     for (size_t index=0; index < pubkey_size; index++) {
                                             m_keys.push_back(
-                                                            private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
+                                                private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative,
+							                                                                seed,
+															index,
+															m_empty));
                                     }
 				}
 				std::string get_privkey() {
@@ -327,17 +332,19 @@ namespace spqsigs {
 				friend signing_key<hashlen, wotsbits, merkleheight>;
 				private:
 				//Private constructor, only to be called from signing_key
-				private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed, std::string recovery=""): 
-					    m_keys() {
+				private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed, std::string &recovery): 
+					    m_keys(), m_empty() {
 					// Construct from multiple private_key's
 					for (size_t index=0; index < pubkey_size; index++) {
-						//FIXME: use recovery here!
-						auto rec = recovery;
 						m_keys.push_back(
-								private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative, seed, index));
+								private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative,
+									                                                                seed,
+																	index,
+																	recovery));
 					}
 				};
 				std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkleheight, pubkey_size>>  m_keys;
+				std::string m_empty;
 			};
 	}
 	// Public API signing_key
@@ -435,7 +442,8 @@ namespace spqsigs {
 			signing_key(): m_next_index(0),
 			    m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
 			    m_hashfunction(non_api::GENERATE()),
-			    m_privkeys(m_hashfunction, m_seed),
+			    m_empty(),
+			    m_privkeys(m_hashfunction, m_seed, m_empty),
 			    m_merkle_tree(m_hashfunction, m_privkeys) {
 				    //Get pubkey as a way to populate.
 				    this->m_merkle_tree.pubkey();
@@ -504,6 +512,7 @@ namespace spqsigs {
 			uint16_t m_next_index;
 			std::string m_seed;
 			non_api::primative<hashlen, wotsbits, merkleheight> m_hashfunction;
+			std::string m_empty;
 			non_api::private_keys<hashlen, merkleheight, wotsbits, static_cast<unsigned short>(1) << merkleheight > m_privkeys;
 			merkle_tree m_merkle_tree;
 		};
