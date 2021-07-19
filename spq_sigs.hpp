@@ -226,14 +226,15 @@ namespace spqsigs {
 					subkey(primative<hashlen, wotsbits, merkleheight> &hashprimative,
 							std::string seed,
 							size_t index,
-							size_t subindex):
+							size_t subindex,
+							std::string restore=""):
 						m_index(index),
 						m_subindex(subindex),
 						m_hashprimative(hashprimative),
-						m_private(), m_public("") {
+						m_private(), m_public(restore) {
 							for (size_t side=0; side < 2; side ++) {
-								m_private.push_back(
-										hashprimative.seed_to_secret(seed,
+							    	m_private.push_back(
+							 			hashprimative.seed_to_secret(seed,
 											index,
 											subindex,
 											side));
@@ -325,8 +326,12 @@ namespace spqsigs {
 															m_empty));
                                     }
 				}
-				std::string get_privkey() {
-                                    return "bogus";
+				std::string pubkey() {
+				    std::string rval;
+                                    for ( auto &privkey : m_keys) {
+                                        rval += privkey.pubkey();
+				    }
+                                    return rval;
 				}
 				//Only signing_key should invoke the constructor for private_keys
 				friend signing_key<hashlen, wotsbits, merkleheight>;
@@ -435,10 +440,11 @@ namespace spqsigs {
 			static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
 			//The number of bits used for wots encoding must be 3 upto 16 bits. 
 			static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16)are not supported");
-			static_assert(wotsbits > 2, "A wots chain should be at least 4 hash operations long (botsbits > 1)");
+			static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (botsbits > 1)");
 			//The height of a singe merkle-tree must be 3 up to 16 levels.
 			static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
-			static_assert(merkleheight > 2, "A single merkle tree should ve at least two levels high. A value between 8 and 10 is recomended");
+			static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+                        static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
 			signing_key(): m_next_index(0),
 			    m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
 			    m_hashfunction(non_api::GENERATE()),
@@ -497,8 +503,8 @@ namespace spqsigs {
 				return this->sign_digest(digest);	 
 			};
 			//Future API call for serializing the signing key.
-			std::string get_state() {
-				return m_seed + m_hashfunction.get_salt() +  m_privkeys.get_privkey();
+			std::tuple<std::string,  uint16_t, std::string>  get_state() {
+				return std::make_tuple(m_seed + m_hashfunction.get_salt(), m_next_index,  m_privkeys.pubkey());
 			}
 			uint16_t get_next_index(){
                             return m_next_index;
@@ -542,9 +548,9 @@ namespace spqsigs {
                             return rval;
                         }
                     }
-		    std::vector<std::tuple<std::string, uint16_t, std::string>> get_state() {
+		    std::vector<std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>> get_state() {
                         auto rval = m_signing_key.get_state();
-			rval.push_back(std::make_tuple(m_root_key.get_state(), m_root_key.get_next_index(),m_signing_key_signature));
+			rval.push_back(std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>(m_root_key.get_state(), m_signing_key_signature));
 			return rval;
                     }
 
@@ -589,10 +595,10 @@ namespace spqsigs {
                         rval.push_back(std::make_pair(m_signing_key.pubkey(), m_signing_key_signature));
                         return std::make_pair(signature,rval);
                     }
-		    std::vector<std::tuple<std::string, uint16_t, std::string>> get_state() {
-                        std::vector<std::tuple<std::string, uint16_t, std::string>> rval;
-			rval.push_back(std::make_tuple(m_signing_key.get_state(), m_signing_key.get_next_index(), ""));
-                        rval.push_back(std::make_tuple(m_root_key.get_state(), m_root_key.get_next_index(), m_signing_key_signature));
+		    std::vector<std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>> get_state() {
+                        std::vector<std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>> rval;
+			rval.push_back(std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>(m_signing_key.get_state(), std::string("")));
+			rval.push_back(std::pair<std::tuple<std::string, uint16_t, std::string>, std::string>(m_root_key.get_state(), m_signing_key_signature));
 			return rval;
                     }
                     std::string pubkey() {

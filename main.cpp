@@ -130,8 +130,14 @@ int main() {
 	if (ind == 13) {
             auto serialized = skey2l.get_state();
             for ( auto &i : serialized ) {
-		    std::cout << as_hex(std::get<0>(i)) << std::endl;
-		    std::cout << int(std::get<1>(i)) << std::endl;
+		    std::cout << " ############## privkey ################# " << std::endl;
+		    std::cout << as_hex(std::get<0>(i.first)) << std::endl;
+		    std::cout << " ############## next_index ################# " << std::endl;
+		    std::cout << int(std::get<1>(i.first)) << std::endl;
+		    std::cout << " ############## big pubkey ################# " << std::endl;
+		    std::cout << as_hex(std::get<2>(i.first)) << std::endl;
+		    std::cout << " ############## signature ################# " << std::endl;
+		    std::cout << as_hex(i.second) << std::endl;
 	    }
 	}
     }
