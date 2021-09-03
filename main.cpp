@@ -127,19 +127,19 @@ int main() {
 	    std::cout << "OOPS" << std::endl;
             except_count += 1;
 	}
-	if (ind == 13) {
-            auto serialized = skey2l.get_state();
-            for ( auto &i : serialized ) {
-		    std::cout << " ############## privkey ################# " << std::endl;
-		    std::cout << as_hex(std::get<0>(i.first)) << std::endl;
-		    std::cout << " ############## next_index ################# " << std::endl;
-		    std::cout << int(std::get<1>(i.first)) << std::endl;
-		    std::cout << " ############## big pubkey ################# " << std::endl;
-		    std::cout << as_hex(std::get<2>(i.first)) << std::endl;
-		    std::cout << " ############## signature ################# " << std::endl;
-		    std::cout << as_hex(i.second) << std::endl;
-	    }
-	}
+	//if (ind == 13) {
+        //    auto serialized = skey2l.get_state();
+        //    for ( auto &i : serialized ) {
+	//	    std::cout << " ############## privkey ################# " << std::endl;
+	//	    std::cout << as_hex(std::get<0>(i.first)) << std::endl;
+	//	    std::cout << " ############## next_index ################# " << std::endl;
+	//	    std::cout << int(std::get<1>(i.first)) << std::endl;
+	//	    std::cout << " ############## big pubkey ################# " << std::endl;
+	//	    std::cout << as_hex(std::get<2>(i.first)) << std::endl;
+	//	    std::cout << " ############## signature ################# " << std::endl;
+	//	    std::cout << as_hex(i.second) << std::endl;
+	//    }
+	//}
     }
     std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
     ok_count = 0;
