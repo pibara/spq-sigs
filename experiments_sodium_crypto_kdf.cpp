@@ -43,9 +43,15 @@ namespace spqsigs {
       uint64_t operator()(bool deep=true) {
 	  if (deep) {
 	      determine_required_keycount<hashlen, wotsbits, Args...> determine;
-              return 1 + (1<<merkleheight) * (determine_subkeys_per_signature<hashlen, wotsbits>() + determine());
+	      uint64_t rval = 1 + 
+                    (1<<merkleheight) * 
+                    (determine_subkeys_per_signature<hashlen, wotsbits>() + determine(deep));
+              return rval;
 	  } else {
-              return 1 + (1<<merkleheight) * determine_subkeys_per_signature<hashlen, wotsbits>();
+              uint64_t rval = 1 +
+		     (1<<merkleheight) *
+		     determine_subkeys_per_signature<hashlen, wotsbits>();
+	      return rval;
 	  }
       }
   };
@@ -53,7 +59,8 @@ namespace spqsigs {
   template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
   struct determine_required_keycount<hashlen, wotsbits, merkleheight> {
       uint64_t operator()(bool deep=true) {
-          return determine_subkeys_per_signature<hashlen, wotsbits>() * (1<<merkleheight) + 1;
+          uint64_t rval = determine_subkeys_per_signature<hashlen, wotsbits>() * (1<<merkleheight) + 1;
+          return rval;
       }
   };
 
@@ -71,7 +78,6 @@ namespace spqsigs {
 	  unique_index_generator<hashlen, wotsbits, Args...> operator()(){
 	      auto rval = m_generate;
               m_generate += m_determine();
-	      std::cout << " (" << rval << " -> " << m_generate << ") ";
 	      return unique_index_generator<hashlen, wotsbits, Args...>(m_master_key, rval);
 	  }
 	  uint64_t operator[](uint16_t index) {
@@ -100,6 +106,26 @@ namespace spqsigs {
           uint64_t m_own;
   };
 
+  template <uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t ...Args>
+  struct unique_index_restore {
+      void operator()(uint64_t index, std::vector<uint16_t> &result) {
+          determine_required_keycount<hashlen, wotsbits, Args...> determine;
+	  auto required_keycount = determine();
+	  uint16_t rval = index / required_keycount;
+	  result.push_back(rval);
+	  unique_index_restore<hashlen, wotsbits, Args...> next_level;
+	  next_level(index - required_keycount * rval, result);
+      }
+  };
+
+  template <uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
+  struct unique_index_restore<hashlen, wotsbits, merkleheight> {
+      void operator()(uint64_t index, std::vector<uint16_t> &result) {
+          uint16_t rval = index;
+          result.push_back(rval);
+      }
+  };
+
 }
 
 int main() {
@@ -124,8 +150,15 @@ int main() {
             auto l3 = l2();
 	    uint64_t l3v = l3;
             std::cout << "  + " << l3v << std::endl;
-	    for (int i0=0; i0<32; i0++) {
-                std::cout << "  -> " << l3[i0] << std::endl;
+	    for (int i3=0; i3<32; i3++) {
+                std::cout << "  -> " << l3[i3] << " " << i3 + (32 * (i2 + (16*i1))) << "(" << i1 << "," << i2 << "," << i3 << ")" <<std::endl;
+		//std::vector<uint16_t> reverse;
+		//spqsigs::unique_index_restore<24,12,3,4,5> restore;
+		//restore(l3[i3], reverse);
+		//std::cout << "      " << i1 << "," << i2 << "," << i3 << " -> ";
+		//for (auto i: reverse)
+                //    std::cout << i << ',';
+		//std::cout << std::endl;
             }
 	    std::cout << "--######################################" << std::endl;
 	}
