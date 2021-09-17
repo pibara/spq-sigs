@@ -269,6 +269,12 @@ struct unique_index_generator<hashlen, wotsbits, merkleheight> {
 template<uint8_t hashlen, uint8_t wotsbits>
 std::vector<uint32_t> digest_to_numlist(std::string &msg_digest)
 {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
     std::vector<uint32_t> rval;
     //Calculate (compile-time) how many sub-keys are needed for signing hashlen bytes of data
     constexpr static int subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
@@ -323,6 +329,9 @@ std::vector<uint32_t> digest_to_numlist(std::string &msg_digest)
 template<uint8_t merkleheight>
 std::vector<bool> as_bits(uint32_t signing_key_index)
 {
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
     std::vector<bool> rval;
     //Go from left (higher index value) to right (zero).
     for (uint8_t index=merkleheight; index>0; index--) {
@@ -337,6 +346,16 @@ std::vector<bool> as_bits(uint32_t signing_key_index)
 // Hashing primative for 'hashlen' long digests, with a little extra. The hashing primative runs using libsodium.
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 struct primative {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     // Virtual distructor
     virtual ~primative() {}
     // Function for generating a securely random 'hashlen' long seed or salt.
@@ -444,6 +463,16 @@ private:
 // a single transaction/message digest.
 template<uint8_t hashlen, int subkey_count, uint8_t wotsbits, uint8_t merkleheight, uint32_t pubkey_size>
 struct private_key {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     // A tiny chunk of a one-time (wots) signing key, able to sign a chunk of 'wotsbits' bits with.
     struct subkey {
         //constructor, takes hashing primative, a seed, the one-time-signature index and the
@@ -540,6 +569,16 @@ private:
 // Collection of all one-time signing keys belonging with a signing key
 template<uint8_t hashlen,  uint8_t merkleheight, uint8_t wotsbits, uint32_t pubkey_size>
 struct private_keys {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     static constexpr uint32_t subkey_count =  (hashlen * 8 + wotsbits -1) / wotsbits;
     // Virtual destructor
     virtual ~private_keys() {};
@@ -596,6 +635,16 @@ private:
 // Public API signing_key
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 struct signing_key {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     // The merkle-tree that maps a larger collection of single use private/public keys, to a single merkle-root public key.
     // Also used in encoding signatures.
     struct merkle_tree {
@@ -682,16 +731,6 @@ struct signing_key {
         std::map<std::string, std::string> m_merkle_tree;
     };
     //Signing key instantiation constraints.
-    //Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
-    static_assert(hashlen > 2, "Hash size should be at least 24 bits (3 bytes). For non-demo usage 128 bit (16 bytes) is suggested.");
-    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
-    //The number of bits used for wots encoding must be 3 upto 16 bits.
-    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16)are not supported");
-    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (botsbits > 1)");
-    //The height of a singe merkle-tree must be 3 up to 16 levels.
-    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
-    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
-    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     signing_key(uint64_t gindex=0): m_next_index(0),
         m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
         m_hashfunction(non_api::GENERATE()),
@@ -787,6 +826,18 @@ private:
 // The multi-tree variant of the signing key. First for three and more merkle trees.
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 struct multi_signing_key {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     multi_signing_key(bool assume_peer_caching=false, uint64_t gindex=0):
 	m_gindex(gindex),
 	m_child_gindex(gindex+1),
@@ -859,6 +910,18 @@ private:
 // The multi-tree variant of the signing key. This one is for two merkle trees to close of the stack.
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
 struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     multi_signing_key(bool assume_peer_caching=false, uint64_t gindex=0) :
 	m_gindex(gindex),
 	m_child_gindex(gindex+1),
@@ -932,20 +995,18 @@ private:
 //Public-API signature
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight>
 struct signature {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     signature(std::string sigstring): m_pubkey(), m_salt(), m_index(0), m_mt_bits(),m_merkle_tree_header(), m_signature_body()
     {
-        //Signature instantiation constraints.
-        //Hash length must be 3 up to 64 bytes long. Shortes than 16 isn't recomended for purposes other than educational use.
-        static_assert(hashlen > 2,
-                      "Hash size should be at least 24 bits (3 bytes). For non-demo usage 128 bit (16 bytes) is suggested.");
-        static_assert(hashlen < 65, "Hash size of more then 512 bits is not supported");
-        //The number of bits used for wots encoding must be 3 upto 16 bits.
-        static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16)are not supported");
-        static_assert(wotsbits > 2, "A wots chain should be at least 4 hash operations long (botsbits > 1)");
-        //The height of a singe merkle-tree must be 3 up to 16 levels.
-        static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
-        static_assert(merkleheight > 2,
-                      "A single merkle tree should ve at least two levels high. A value between 8 and 10 is recomended");
         constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
         constexpr size_t expected_length = 2 + hashlen * (2 + merkleheight + 2 * subkey_count);
         // * check signature length
@@ -1035,6 +1096,18 @@ private:
 
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 struct multi_signature {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig,
                     std::vector<std::string> &last_known,
                     int treedepth=0):
@@ -1116,6 +1189,18 @@ private:
 
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
 struct multi_signature<hashlen, wotsbits, merkleheight, merkleheight2> {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     multi_signature(std::pair<std::string, std::vector<std::pair<std::string, std::string>>> &sig,
                     std::vector<std::string> &last_known,
                     int treedepth=0):
@@ -1205,6 +1290,18 @@ private:
 
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2, uint8_t ...Args>
 struct deserializer {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     deserializer(): m_deserializer() {}
     std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in)
     {
@@ -1236,6 +1333,18 @@ private:
 
 template<uint8_t hashlen, uint8_t wotsbits, uint8_t merkleheight, uint8_t merkleheight2>
 struct deserializer<hashlen, wotsbits, merkleheight, merkleheight2> {
+    //Hash length must be 16 up to 64 bytes long.
+    static_assert(hashlen > 15, "Hash size should be at least 128 bits (16 bytes).");
+    static_assert(hashlen < 65,  "Hash size of more then 512 bits is not supported");
+    //The number of bits used for wots encoding must be 3 upto 16 bits.
+    static_assert(wotsbits < 17, "Wots chains longer than 64k hash operations (wotsbits>16) are not supported");
+    static_assert(wotsbits > 3, "A wots chain should be at least 16 hash operations long (wotsbits > 1)");
+    //The height of a singe merkle-tree must be 3 up to 16 levels.
+    static_assert(merkleheight < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
+    static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
+    static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     std::pair<std::string, std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> operator()(std::string in)
     {
         constexpr int subkey_count = (hashlen * 8 + wotsbits -1) / wotsbits;
