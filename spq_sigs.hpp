@@ -207,12 +207,20 @@ struct unique_index_generator {
           unique_index_generator(master_key<hashlen> &mkey, uint64_t own=0):
                   m_master_key(mkey),
                   m_own(own),
+		  m_cast(mkey, own),
                   m_determine(),
                   m_determine2(),
                   m_generate(
                       own + m_determine()
                   ) {}
           virtual ~unique_index_generator() {}
+	  unique_index_generator& operator=(const unique_index_generator& other) {
+              m_master_key=other.m_master_key;
+	      m_own = other.m_own;
+	      m_cast = this->cast();
+              m_generate = other.m_generate;
+	      return *this;
+	  }
           unique_index_generator<hashlen, wotsbits, Args...> operator()(uint64_t index){
               if (index >= (1<<merkleheight)) {
                   throw std::out_of_range("invalid index for key structure");
@@ -227,9 +235,13 @@ struct unique_index_generator {
           }
           operator uint64_t(){ return m_own;}
           operator std::string(){ return m_master_key[m_own]; }
+	  unique_index_generator<hashlen, wotsbits, merkleheight> cast() {
+              return m_cast;
+	  }
       private:
           master_key<hashlen> &m_master_key;
           uint64_t m_own;
+	  unique_index_generator<hashlen, wotsbits, merkleheight> m_cast;
           determine_required_keycount<hashlen, wotsbits, merkleheight> m_determine;
           determine_required_keycount<hashlen, wotsbits, Args...> m_determine2;
           uint64_t m_generate;
@@ -251,6 +263,11 @@ struct unique_index_generator<hashlen, wotsbits, merkleheight> {
               m_master_key(mkey),
               m_own(own) {}
           virtual ~unique_index_generator() {}
+	  unique_index_generator& operator=(const unique_index_generator& other) {
+              m_master_key=other.m_master_key;
+              m_own = other.m_own;
+	      return *this;
+          }
           wots_index_generator<hashlen, wotsbits> operator[](uint16_t index) {
               if (index >= (1<<merkleheight)) {
                   throw std::out_of_range("invalid index for key structure");
@@ -293,7 +310,7 @@ std::vector<uint32_t> digest_to_numlist(std::string &msg_digest)
         //Add whole bytes to val before signing.
         while (remaining_bits > 8) {
             val = (val << 8) + data[byteindex];
-            byteindex +=1;
+            byteindex++;
             remaining_bits -= 8;
         }
         //Add partial byte to val before signing
@@ -320,7 +337,7 @@ std::vector<uint32_t> digest_to_numlist(std::string &msg_digest)
         // remaining bits to sign with single subkey next time around the loop
         remaining_bits = wotsbits - used_bits;
         // On to the next digest byte.
-        byteindex +=1;
+        byteindex++;
     }
     return rval;
 }
@@ -730,39 +747,23 @@ struct signing_key {
                 static_cast<unsigned short>(1) << merkleheight > &m_private_keys;
         std::map<std::string, std::string> m_merkle_tree;
     };
-    //Signing key instantiation constraints.
-    signing_key(uint64_t gindex=0): m_next_index(0),
+    signing_key(non_api::unique_index_generator<hashlen, wotsbits, merkleheight> entropy):
+	m_entropy(entropy),
+	m_next_index(0),
         m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
         m_hashfunction(non_api::GENERATE()),
         m_empty(),
-        m_master_index(gindex * (static_cast<unsigned short>(1) << merkleheight) * ((hashlen * 8 + wotsbits -1)/wotsbits) * 2),
+        m_master_index(entropy),
         m_privkeys(m_hashfunction, m_seed, m_empty, m_master_index),
         m_merkle_tree(m_hashfunction, m_privkeys)
     {
         //Get pubkey as a way to populate.
         this->m_merkle_tree.pubkey();
     };
-    signing_key(std::tuple<std::string, uint16_t, std::string> &recover_state, uint64_t gindex):
-        m_next_index(std::get<1>(recover_state)),
-        m_seed(std::get<0>(recover_state).substr(0,hashlen)),
-        m_hashfunction(std::get<0>(recover_state).substr(hashlen,hashlen)),
-        m_master_index(gindex * (static_cast<unsigned short>(1) << merkleheight) * ((hashlen * 8 + wotsbits -1)/wotsbits) * 2),
-        m_privkeys(m_hashfunction,
-                   m_seed,
-                   std::get<0>(recover_state).substr(hashlen*2,
-                           std::get<0>(recover_state).size() - hashlen*2
-                                                    ),
-		   m_master_index
-                  ),
-        m_merkle_tree(m_hashfunction, m_privkeys)
-    {
-        //Get pubkey as a way to populate.
-        this->m_merkle_tree.pubkey();
-    };
     //Make a new key when current one is exhausted
-    void refresh(uint64_t gindex)
+    void refresh(non_api::unique_index_generator<hashlen, wotsbits, merkleheight> entropy)
     {
-        m_master_index= gindex * (static_cast<unsigned short>(1) << merkleheight) * ((hashlen * 8 + wotsbits -1)/wotsbits) * 2;
+        m_master_index = entropy;
         m_next_index = 0;
         m_seed = non_api::primative<hashlen, wotsbits, merkleheight>::make_seed();
         m_hashfunction.refresh();
@@ -814,6 +815,7 @@ struct signing_key {
     //Virtual destructor
     virtual ~signing_key() {}
 private:
+    non_api::unique_index_generator<hashlen, wotsbits, merkleheight> m_entropy;
     uint16_t m_next_index;
     std::string m_seed;
     non_api::primative<hashlen, wotsbits, merkleheight> m_hashfunction;
@@ -838,18 +840,12 @@ struct multi_signing_key {
     static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
     static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
     static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
-    multi_signing_key(bool assume_peer_caching=false, uint64_t gindex=0):
-	m_gindex(gindex),
-	m_child_gindex(gindex+1),
-        m_signing_key(assume_peer_caching, m_child_gindex),
-        m_root_key(gindex),
+    multi_signing_key(bool assume_peer_caching, non_api::unique_index_generator<hashlen, wotsbits, merkleheight, merkleheight2, Args...> entropy):
+	m_entropy(entropy),
+	m_child_index(0),
+	m_root_key(entropy.cast()),
+        m_signing_key(assume_peer_caching, entropy(m_child_index)),
         m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())),
-        m_assume_peer_caching(assume_peer_caching) {
-	}
-    multi_signing_key(std::vector<std::tuple<std::string, uint16_t, std::string>> &recover_state,
-                      bool assume_peer_caching=false, uint64_t gindex=0): m_signing_key(recover_state, assume_peer_caching, gindex),
-        m_root_key(recover_state[1+sizeof...(Args)]),
-        m_signing_key_signature(std::get<2>(recover_state[1+sizeof...(Args)])),
         m_assume_peer_caching(assume_peer_caching) {
 	}
     std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message)
@@ -880,29 +876,24 @@ struct multi_signing_key {
     }
     void refresh()
     {
-        m_gindex += this->get_step();
-	m_child_gindex += m_gindex + 1;
-	m_root_key.refresh(m_gindex);
-	m_signing_key.refresh(m_child_gindex);
+	m_child_index++;
+	m_signing_key.refresh(m_entropy(m_child_index));
 	m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
     }
-    void refresh(uint64_t gindex)
+    void refresh(non_api::unique_index_generator<hashlen, wotsbits, merkleheight2, Args...> new_entropy)
     {   
-	m_gindex = gindex;
-	m_child_gindex = gindex+1;
-        m_root_key.refresh(m_gindex);
-        m_signing_key.refresh(m_child_gindex);
+	m_entropy = new_entropy;
+	m_child_index = 0;
+        m_root_key.refresh(new_entropy);
+        m_signing_key.refresh(m_entropy(m_child_index));
         m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
-    }
-    uint64_t get_step() {
-        return 1 + ((1<<merkleheight) * m_signing_key.get_step());
     }
     virtual ~multi_signing_key() {}
 private:
-    uint64_t m_gindex;
-    uint64_t m_child_gindex;
-    multi_signing_key<hashlen, wotsbits, merkleheight2, Args...> m_signing_key;
+    non_api::unique_index_generator<hashlen, wotsbits, merkleheight, merkleheight2, Args...> m_entropy;
+    uint16_t m_child_index;
     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
+    multi_signing_key<hashlen, wotsbits, merkleheight2, Args...> m_signing_key;
     std::string m_signing_key_signature;
     bool m_assume_peer_caching;
 };
@@ -922,18 +913,13 @@ struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
     static_assert(merkleheight2 < 17, "A single merkle tree should not be more than 16 levels high");
     static_assert(merkleheight2 > 2, "A single merkle tree should be at least two levels high. A value between 8 and 10 is recomended");
     static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
-    multi_signing_key(bool assume_peer_caching=false, uint64_t gindex=0) :
-	m_gindex(gindex),
-	m_child_gindex(gindex+1),
-        m_root_key(gindex),
-        m_signing_key(gindex+1),
+    multi_signing_key(bool assume_peer_caching, non_api::unique_index_generator<hashlen, wotsbits, merkleheight, merkleheight2> entropy) :
+	m_entropy(entropy),
+	m_cast(entropy.cast()),
+	m_child_index(0),
+        m_root_key(m_cast),
+        m_signing_key(entropy(m_child_index)),
         m_signing_key_signature(m_root_key.sign_digest(m_signing_key.pubkey())),
-        m_assume_peer_caching(assume_peer_caching) {
-	}
-    multi_signing_key(std::vector<std::tuple<std::string, uint16_t, std::string>> &recover_state,
-                      bool assume_peer_caching=false, uint64_t gindex=0): m_root_key(recover_state[1]),
-        m_signing_key(recover_state[0]),
-        m_signing_key_signature(std::get<2>(recover_state[1])),
         m_assume_peer_caching(assume_peer_caching) {
 	}
     std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message)
@@ -943,8 +929,8 @@ struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
             signature = m_signing_key.sign_message(message);
         }
         catch  (const spqsigs::signingkey_exhausted&) {
-            m_child_gindex++;
-            m_signing_key.refresh(m_child_gindex);
+            m_child_index++;
+            m_signing_key.refresh(m_entropy(m_child_index));
             m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
             signature = m_signing_key.sign_message(message);
         }
@@ -965,18 +951,16 @@ struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
     }
     void refresh()
     {
-        m_gindex += this->get_step();
-	m_child_gindex = m_gindex + 1;
-	m_root_key.refresh(m_gindex);
-	m_signing_key.refresh(m_child_gindex);
+	m_child_index++;
+	m_signing_key.refresh(m_entropy(m_child_index));
 	m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
     }
-    void refresh(uint64_t gindex)
+    void refresh(non_api::unique_index_generator<hashlen, wotsbits, merkleheight, merkleheight2> new_entropy)
     {
-        m_gindex = gindex;
-	m_child_gindex = gindex + 1;
-        m_root_key.refresh(gindex);
-        m_signing_key.refresh(m_child_gindex);
+        m_entropy = new_entropy;
+        m_child_index = 0;
+        m_root_key.refresh(new_entropy.cast());
+        m_signing_key.refresh(m_entropy(m_child_index));
         m_signing_key_signature = m_root_key.sign_digest(m_signing_key.pubkey());
     }
     uint64_t get_step() {
@@ -984,12 +968,33 @@ struct multi_signing_key<hashlen, wotsbits, merkleheight, merkleheight2> {
     }
     virtual ~multi_signing_key() {}
 private:
-    uint64_t m_gindex;
-    uint64_t m_child_gindex;
+    non_api::unique_index_generator<hashlen, wotsbits, merkleheight, merkleheight2> m_entropy;
+    non_api::unique_index_generator<hashlen, wotsbits, merkleheight> m_cast;
+    uint16_t m_child_index;
     signing_key<hashlen, wotsbits, merkleheight> m_root_key;
     signing_key<hashlen, wotsbits, merkleheight2> m_signing_key;
     std::string m_signing_key_signature;
     bool m_assume_peer_caching;
+};
+
+// Work In Progress
+template<uint8_t hashlen, uint8_t ...Args> 
+struct spq_signing_key {
+        spq_signing_key(bool assume_peer_caching=false): m_master_key(), m_entropy(m_master_key), m_multi_key(assume_peer_caching, m_entropy) {}
+	spq_signing_key(std::string private_key, bool assume_peer_caching): m_master_key(private_key), m_entropy(m_master_key), m_multi_key(assume_peer_caching, m_entropy) {}
+        std::pair<std::string, std::vector<std::pair<std::string, std::string>>> sign_message(std::string &message) {
+            return m_multi_key.sign_message(message);
+	}
+	std::string public_key() {
+	    return m_multi_key.pubkey();
+	}
+	std::string private_key() {
+            return m_master_key;
+	}
+    private:
+        non_api::master_key<hashlen> m_master_key;
+	non_api::unique_index_generator<hashlen, Args...> m_entropy;
+	multi_signing_key<hashlen, Args...> m_multi_key;
 };
 
 //Public-API signature

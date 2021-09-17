@@ -44,18 +44,18 @@ constexpr unsigned char merkleheight1=3;
 constexpr unsigned char merkleheight2=4;
 constexpr unsigned char merkleheight3=5;
 constexpr unsigned char merkleheight4=6;
-typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
+//typedef spqsigs::signing_key<hashlen, wotsbits, merkleheight> signing_key;
 typedef spqsigs::signature<hashlen, wotsbits, merkleheight> verifyable_signature;
 
-typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2> signing_key_2l;
+typedef spqsigs::spq_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2> signing_key_2l;
 typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2> verifyable_signature_2l;
 typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2>  deserializer_2l;
 
-typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> signing_key_3l;
+typedef spqsigs::spq_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> signing_key_3l;
 typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3> verifyable_signature_3l;
 typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3>  deserializer_3l;
 
-typedef spqsigs::multi_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> signing_key_4l;
+typedef spqsigs::spq_signing_key<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> signing_key_4l;
 typedef spqsigs::multi_signature<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4> verifyable_signature_4l;
 typedef spqsigs::deserializer<hashlen, wotsbits, merkleheight1, merkleheight2, merkleheight3, merkleheight4>  deserializer_4l;
 
@@ -68,32 +68,32 @@ int main() {
     int except_count = 0;
     std::cout << "Creating a new signing key. This may take a while." << std::endl;
     std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
-    auto skey = signing_key();
-    for (int ind=0; ind < (1 << merkleheight); ind++) {
-	try {
-            std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << " ";
-            std::string signature = skey.sign_message(msg);
-            // std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
-	    // std::cout << "signature: " << as_hex(signature) << std::endl;
-	    // std::cout << std::endl << "Parsing signature" << std::endl;
-            auto sign = verifyable_signature(signature);
-            if (sign.validate(msg)) {
-                ok_count += 1;
-		std::cout << "VALIDATED" << std::endl;
-	    } else {
-		std::cout << "ERROR" << std::endl;
-                fail_count += 1;
-	    }
-	} catch  (const spqsigs::signingkey_exhausted&) {
-             except_count += 1;
-	}
-    }
-    std::cout << std::endl << "OK:" << ok_count << " FAIL:" << fail_count << " EXCEPT:" << except_count  << std::endl;
-    try {
-        std::string signature2 = skey.sign_message(msg);
-    } catch (const spqsigs::signingkey_exhausted&) {
-        std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
-    }
+    //auto skey = signing_key();
+    //for (int ind=0; ind < (1 << merkleheight); ind++) {
+//	try {
+  //          std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << " ";
+  //          std::string signature = skey.sign_message(msg);
+    //        // std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
+//	    // std::cout << "signature: " << as_hex(signature) << std::endl;
+//	    // std::cout << std::endl << "Parsing signature" << std::endl;
+  //          auto sign = verifyable_signature(signature);
+    //        if (sign.validate(msg)) {
+      //          ok_count += 1;
+	//	std::cout << "VALIDATED" << std::endl;
+	  //  } else {
+	//	std::cout << "ERROR" << std::endl;
+          //      fail_count += 1;
+//	    }
+//	} catch  (const spqsigs::signingkey_exhausted&) {
+  //           except_count += 1;
+//	}
+  //  }
+//    std::cout << std::endl << "OK:" << ok_count << " FAIL:" << fail_count << " EXCEPT:" << except_count  << std::endl;
+    //try {
+//        std::string signature2 = skey.sign_message(msg);
+  //  } catch (const spqsigs::signingkey_exhausted&) {
+    //    std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
+//    }
     ok_count = 0;
     fail_count = 0;
     except_count = 0;
@@ -102,7 +102,7 @@ int main() {
     auto skey2l = signing_key_2l();
     std::vector<std::string> cached;
     cached.push_back("");
-    cached.push_back(skey2l.pubkey());
+    cached.push_back(skey2l.public_key());
     spqsigs::reducer reducer2l;
     spqsigs::expander expander2l;
     deserializer_2l deserialize2l; 
@@ -111,7 +111,7 @@ int main() {
 	    std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2)) << " ";
             auto signature = skey2l.sign_message(msg);
 	    reducer2l.reduce(signature);
-	    std::string serialized2l = spqsigs::serialize(signature, skey2l.pubkey());
+	    std::string serialized2l = spqsigs::serialize(signature, skey2l.public_key());
 	    std::cout << " " << serialized2l.size() << "-byte signature "; 
 	    auto deserialized2 = deserialize2l(serialized2l);
 	    signature = deserialized2.second;
@@ -151,7 +151,7 @@ int main() {
     std::vector<std::string> cached2;
     cached2.push_back("");
     cached2.push_back("");
-    cached2.push_back(skey3l.pubkey());
+    cached2.push_back(skey3l.public_key());
     spqsigs::reducer reducer3l;
     spqsigs::expander expander3l;
     deserializer_3l deserialize3l;
@@ -160,7 +160,7 @@ int main() {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3)) << " ";
             auto signature = skey3l.sign_message(msg);
 	    reducer3l.reduce(signature);
-	    std::string serialized3l = spqsigs::serialize(signature, skey3l.pubkey());
+	    std::string serialized3l = spqsigs::serialize(signature, skey3l.public_key());
             std::cout << " " << serialized3l.size() << " -byte signature ";
 	    auto deserialized3 = deserialize3l(serialized3l);
 	    auto signature_out = deserialized3.second;
@@ -193,7 +193,7 @@ int main() {
     cached3.push_back("");
     cached3.push_back("");
     cached3.push_back("");
-    cached3.push_back(skey4l.pubkey());
+    cached3.push_back(skey4l.public_key());
     spqsigs::reducer reducer4l;
     spqsigs::expander expander4l;
     deserializer_4l deserialize4l;
@@ -202,7 +202,7 @@ int main() {
             std::cout <<  "Making signature " << ind << " out of " << (1 << (merkleheight1 + merkleheight2 + merkleheight3 + merkleheight4)) << " ";
             auto signature = skey4l.sign_message(msg);
 	    reducer4l.reduce(signature);
-	    std::string serialized4l = spqsigs::serialize(signature, skey3l.pubkey());
+	    std::string serialized4l = spqsigs::serialize(signature, skey3l.public_key());
             std::cout << " " << serialized4l.size() << "-byte signature ";
 	    auto deserialized4 = deserialize4l(serialized4l);
 	    auto signature_out = deserialized4.second;
