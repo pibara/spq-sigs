@@ -66,35 +66,6 @@ int main() {
     int ok_count = 0;
     int fail_count = 0;
     int except_count = 0;
-    //std::cout << "Creating a new signing key. This may take a while." << std::endl;
-    //std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
-    //auto skey = signing_key();
-    //for (int ind=0; ind < (1 << merkleheight); ind++) {
-//	try {
-  //          std::cout  << "Making signature " << ind << " out of " << (1 << merkleheight) << " ";
-  //          std::string signature = skey.sign_message(msg);
-    //        // std::cout << "signature length: " <<  signature.length() << " bytes" << std::endl;
-//	    // std::cout << "signature: " << as_hex(signature) << std::endl;
-//	    // std::cout << std::endl << "Parsing signature" << std::endl;
-  //          auto sign = verifyable_signature(signature);
-    //        if (sign.validate(msg)) {
-      //          ok_count += 1;
-	//	std::cout << "VALIDATED" << std::endl;
-	  //  } else {
-	//	std::cout << "ERROR" << std::endl;
-          //      fail_count += 1;
-//	    }
-//	} catch  (const spqsigs::signingkey_exhausted&) {
-  //           except_count += 1;
-//	}
-  //  }
-//    std::cout << std::endl << "OK:" << ok_count << " FAIL:" << fail_count << " EXCEPT:" << except_count  << std::endl;
-    //try {
-//        std::string signature2 = skey.sign_message(msg);
-  //  } catch (const spqsigs::signingkey_exhausted&) {
-    //    std::cout << "Cought expected exception. Signing key exhausted." << std::endl;
-//    }
-    ok_count = 0;
     fail_count = 0;
     except_count = 0;
     std::cout << "Creating a new double-tree signing key. This may take a while." << std::endl;
@@ -127,19 +98,6 @@ int main() {
 	    std::cout << "OOPS" << std::endl;
             except_count += 1;
 	}
-	//if (ind == 13) {
-        //    auto serialized = skey2l.get_state();
-        //    for ( auto &i : serialized ) {
-	//	    std::cout << " ############## privkey ################# " << std::endl;
-	//	    std::cout << as_hex(std::get<0>(i.first)) << std::endl;
-	//	    std::cout << " ############## next_index ################# " << std::endl;
-	//	    std::cout << int(std::get<1>(i.first)) << std::endl;
-	//	    std::cout << " ############## big pubkey ################# " << std::endl;
-	//	    std::cout << as_hex(std::get<2>(i.first)) << std::endl;
-	//	    std::cout << " ############## signature ################# " << std::endl;
-	//	    std::cout << as_hex(i.second) << std::endl;
-	//    }
-	//}
     }
     std::cout << std::endl << " EXCEPT:" << except_count  << std::endl;
     ok_count = 0;
