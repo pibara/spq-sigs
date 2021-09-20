@@ -375,14 +375,6 @@ struct primative {
     static_assert(39 * wotsbits >= hashlen * 8, "Wotsbits and hashlen must not combine into signing keys of more than 39 subkeys each");
     // Virtual distructor
     virtual ~primative() {}
-    // Function for generating a securely random 'hashlen' long seed or salt.
-    static std::string make_seed()
-    {
-        char output[hashlen];
-        //Use libsodium to get our random bytes
-        randombytes_buf(output, hashlen);
-        return std::string(output, hashlen);
-    };
     //Hash the input with the salt and return the digest.
     std::string operator()(std::string &input)
     {
@@ -433,8 +425,8 @@ struct primative {
     //Convert the seed, together with the index of the full-message-signing-key, the sub-index
     // of the wotsbits chunk of bits to sign, and the bit indicating the left or right wots chain
     // for these indices, into the secret key for signing wotsbits bits with.
-    std::string seed_to_secret(std::string &seed, uint64_t master_index)
-    {
+    //std::string seed_to_secret(std::string &seed, uint64_t master_index)
+    //{
         //unsigned char unsalted[hashlen];
         //unsigned char output[hashlen];
         //std::string sidec = (side) ? "R" : "L";
@@ -453,18 +445,18 @@ struct primative {
         //                           hashlen);
         //return std::string(reinterpret_cast<const char *>(output), hashlen);
 	//FIXME: use libsodium key derivation.
-	auto ind = master_index;
-	ind++;
-	return seed;
-    };
+//	auto ind = master_index;
+//	ind++;
+//	return seed;
+  //  };
     //Retreive the salt for serialization purposes and later usage.
     std::string get_salt()
     {
         return m_salt;
     }
-    void refresh()
+    void refresh(std::string &salt)
     {
-        m_salt = make_seed();
+        m_salt = salt;
     }
     friend signing_key<hashlen, wotsbits, merkleheight>;
     friend signature<hashlen, wotsbits, merkleheight>;
@@ -472,7 +464,7 @@ private:
     // Standard constructor using an existing salt.
     primative(std::string &salt): m_salt(salt) {}
     //Alternative constructor. Generates a random salt.
-    primative(GENERATE): m_salt(make_seed()) {}
+    //primative(GENERATE): m_salt(make_seed()) {}
     std::string m_salt;
 };
 
@@ -495,20 +487,18 @@ struct private_key {
         //constructor, takes hashing primative, a seed, the one-time-signature index and the
         // chunk sub-index and created the chunk private for both direction wots chains.
         subkey(primative<hashlen, wotsbits, merkleheight> &hashprimative,
-               std::string seed,
+               subkey_index_generator<hashlen> entropy,
                size_t index,
                size_t subindex,
-	       uint64_t master_index,
                std::string restore=""):
             m_index(index),
             m_subindex(subindex),
             m_hashprimative(hashprimative),
             m_private(), m_public(restore)
         {
-            for (size_t side=0; side < 2; side ++) {
-                m_private.push_back(
-                    hashprimative.seed_to_secret(seed,
-						 master_index + side));
+	    for (bool side : { false, true }) {
+		std::string secret = entropy(side);
+                m_private.push_back(secret);
             }
         };
         // virtual destructor
@@ -568,15 +558,15 @@ struct private_key {
 private:
     //Private constructor, should only get invoked by private_keys
     private_key(primative<hashlen, wotsbits, merkleheight> &hashprimative,
-                std::string seed,
+                wots_index_generator<hashlen, wotsbits> entropy,
                 size_t index,
                 std::string &recovery,
 		uint64_t master_index): m_subkeys(), m_master_index(master_index)
     {
         auto FIXME = recovery;
         //Compose from its sub-keys.
-        for(size_t subindex=0; subindex < subkey_count; subindex++) {
-            m_subkeys.push_back(subkey(hashprimative, seed, index, subindex, m_master_index + 2* subindex));
+        for(uint16_t subindex=0; subindex < subkey_count; subindex++) {
+            m_subkeys.push_back(subkey(hashprimative, entropy[subindex], index, subindex));
         }
     };
     std::vector<subkey> m_subkeys;
@@ -604,15 +594,15 @@ struct private_keys {
     {
         return this->m_keys[index];
     };
-    void refresh(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed, uint64_t master_index)
+    void refresh(primative<hashlen, wotsbits, merkleheight> &hashprimative, non_api::unique_index_generator<hashlen, wotsbits, merkleheight> entropy, uint64_t master_index)
     {
         m_master_index = master_index;
         std::vector<private_key<hashlen,(hashlen * 8 + wotsbits -1) / wotsbits, wotsbits, merkleheight, pubkey_size>>  empty;
         m_keys.swap(empty);
-        for (size_t index=0; index < pubkey_size; index++) {
+        for (uint16_t index=0; index < pubkey_size; index++) {
             m_keys.push_back(
                 private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative,
-                        seed,
+                        entropy[index],
                         index,
                         m_empty,
 			m_master_index + index * 2 * subkey_count));
@@ -630,15 +620,17 @@ struct private_keys {
     friend signing_key<hashlen, wotsbits, merkleheight>;
 private:
     //Private constructor, only to be called from signing_key
-    private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative, std::string seed, std::string &recovery,
+    private_keys(primative<hashlen, wotsbits, merkleheight> &hashprimative,
+		 non_api::unique_index_generator<hashlen, wotsbits, merkleheight> entropy,
+		 std::string &recovery,
                  uint64_t master_index):
         m_keys(), m_empty(), m_master_index(master_index)
     {
         // Construct from multiple private_key's
-        for (size_t index=0; index < pubkey_size; index++) {
+        for (uint16_t index=0; index < pubkey_size; index++) {
             m_keys.push_back(
                 private_key<hashlen, subkey_count, wotsbits, merkleheight, pubkey_size>(hashprimative,
-                        seed,
+                        entropy[index],
                         index,
                         recovery,
 			m_master_index + 2 * index * subkey_count));
@@ -750,11 +742,11 @@ struct signing_key {
     signing_key(non_api::unique_index_generator<hashlen, wotsbits, merkleheight> entropy):
 	m_entropy(entropy),
 	m_next_index(0),
-        m_seed(non_api::primative<hashlen, wotsbits, merkleheight>::make_seed()),
-        m_hashfunction(non_api::GENERATE()),
+	m_salt(entropy),
+        m_hashfunction(m_salt),
         m_empty(),
         m_master_index(entropy),
-        m_privkeys(m_hashfunction, m_seed, m_empty, m_master_index),
+        m_privkeys(m_hashfunction, entropy, m_empty, m_master_index),
         m_merkle_tree(m_hashfunction, m_privkeys)
     {
         //Get pubkey as a way to populate.
@@ -765,9 +757,9 @@ struct signing_key {
     {
         m_master_index = entropy;
         m_next_index = 0;
-        m_seed = non_api::primative<hashlen, wotsbits, merkleheight>::make_seed();
-        m_hashfunction.refresh();
-        m_privkeys.refresh(m_hashfunction, m_seed, m_master_index);
+	std::string salt(entropy);
+        m_hashfunction.refresh(salt);
+        m_privkeys.refresh(m_hashfunction, entropy, m_master_index);
         m_merkle_tree.refresh();
     }
     //Sign a hashlength bytes long digest.
@@ -802,7 +794,7 @@ struct signing_key {
     //Future API call for serializing the signing key.
     std::tuple<std::string,  uint16_t, std::string>  get_state()
     {
-        return std::make_tuple(m_seed + m_hashfunction.get_salt(), m_next_index,  m_privkeys.pubkey());
+        return std::make_tuple(m_hashfunction.get_salt(), m_next_index,  m_privkeys.pubkey());
     }
     uint16_t get_next_index()
     {
@@ -817,7 +809,7 @@ struct signing_key {
 private:
     non_api::unique_index_generator<hashlen, wotsbits, merkleheight> m_entropy;
     uint16_t m_next_index;
-    std::string m_seed;
+    std::string m_salt;
     non_api::primative<hashlen, wotsbits, merkleheight> m_hashfunction;
     std::string m_empty;
     uint64_t m_master_index;

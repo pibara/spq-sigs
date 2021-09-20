@@ -66,8 +66,8 @@ int main() {
     int ok_count = 0;
     int fail_count = 0;
     int except_count = 0;
-    std::cout << "Creating a new signing key. This may take a while." << std::endl;
-    std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
+    //std::cout << "Creating a new signing key. This may take a while." << std::endl;
+    //std::cout << " - key meant to sign " <<  (1ull << merkleheight) << " messages" << std::endl;
     //auto skey = signing_key();
     //for (int ind=0; ind < (1 << merkleheight); ind++) {
 //	try {
