@@ -6,6 +6,8 @@ This is to be a header-only template library running on top of the [BLAKE2b](htt
 
 This C++ library started out as a port of the Python [PySpqSigs](https://github.com/pibara/pyspqsigs) library. It is now being refactored and extended after attempts to make this a funded HIVE project ended up failing. Once multi-tree and wallets have been implemented in this C++ library, the refactored and extended C++ implementation will get backported to Python. An important part of the Python backport will be moving from hashlib to libsodium.
 
+The most up-to-date design info for spq-sigs can currently be found in [this blog post](https://hive.blog/hive-139531/@pibara/a-walkthrough-of-simple-post-quantum-signatures-spq-sigs)
+
 ## Done
 
 * A signing key has been implemented.
