@@ -18,14 +18,11 @@ This C++ library started out as a port of the Python [PySpqSigs](https://github.
 * Implement (variadic) multi-tree signature validation.
 * Updatate API to work with optionally omitted sub-key signing signatures.
 * Add multi-tree signature serialization/deserialisation where known sub-key signing signatures can optionally be ommitted. 
+* Use crypto\_kdf\_derive\_from\_key at multiple layers
 
 ## Todo for Minimal Viable Product
-
-* Use crypto\_kdf\_derive\_from\_key at multiple layers
-  * key-level in multi-tree signing (7 bits from 64 bits of subkey\_id)
-  * specific index within single tree singing (16 bits from 64 bits of subkey\_id)
-  * subkey (40 bits from 64 bits of subkey\_id)
-  * left/right wots chain (1 bit from 64 bits of subkey\_id)
+* Fix intermediate-layer out-of-range bug
+* Signature serialization & deserialization.
 * Private key serialization and de-serialization (for wallets and persistence).
 * Private key password protection (use libsodium).
 * Code cleanup.
