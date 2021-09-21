@@ -43,3 +43,13 @@ This C++ library started out as a port of the Python [PySpqSigs](https://github.
 * Test signing/validation cross language compatability and fix if needed.
 * Test serialization/deserialization python/c++ cross-compatibility.
 
+# other spq-sigs repos
+
+Currently the C++ repo is where all development happens. Here are some links to (mostly empty) repos for languages spq-sigs will eventually (likely) be ported to.
+
+* [pysqpsigs](https://github.com/pibara/pyspqsigs) (Python) Please note, the current code is from a proof-of concept. The C++ implementation design will soon get backported to Python.
+* [js-spq-sigs](https://github.com/pibara/js-spq-sigs) (JavaScript) Nothing there yet. This one is an esential one to get done after C++ and Python.
+* [m-spq-sigs](https://github.com/pibara/m-spq-sigs) (Monte) This is one that might or might not come to be. Need to look into this one deeper before we know if it will even become possible, but as a cool ocap language, I think it is worth a try and a relatively high place on the priorities list.
+* [r-spq-sigs](https://github.com/pibara/r-spq-sigs) (Rust) Nothing there yet. Rust is an amazing language, haven't done much serious projects with it yet, on my list for that reason.
+* [c-spq-sigs](https://github.com/pibara/c-spq-sigs) (Clojure) Nothing there yet. This one is on the list for one reason only and it may disapear for the same reason. At my day job we use FlureeDB a lot, and I would really like to help make FlureeDB support Simple Post-Quantum Signatures.
+* e-spq-sigs (Elixir) Nothing there yet. Only here because Elixir is a cool language with libsodium bindings that I feel I should learn.
