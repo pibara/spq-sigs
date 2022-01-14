@@ -1,3 +1,7 @@
+# Note: Big refactoring pending
+
+The spq-sigs project is currently undergoing a bit refactoring into what has been renamed to [coinZdense](https://coin.z-den.se/). Check out the [technical deep-dive](https://hive.blog/coinzdense/@pibara/coinzdense-deep-dive-index) documents to see what's comming. The C++ part of the project is currently on hold untill we reach MVP for the Python library, after what it will be evaluated if the code in this repo is going to get reused, or if a full rewrite is in order.
+
 # spq-sigs
 C++ Simple (hash-based) Post-Quantum Signing
 
